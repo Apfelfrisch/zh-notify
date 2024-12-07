@@ -1,0 +1,4 @@
+db/database.sqlite
+db/database.sqlite-journal
+zh-notify
+.env
