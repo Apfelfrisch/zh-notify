@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/apfelfrisch/zh-notify/db"
+	"github.com/samber/lo"
+
 	"github.com/zmb3/spotify"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -82,19 +85,39 @@ func (sp *spotifyService) requestArtist(event *db.Event) (spotify.FullArtist, er
 	result, err := sp.client.Search("artist:"+event.Artist.String, spotify.SearchTypeArtist)
 
 	if err != nil {
-		return spotify.FullArtist{}, nil
+		return spotify.FullArtist{}, err
 	}
 
 	if len(result.Artists.Artists) == 0 {
 		return spotify.FullArtist{}, nil
 	}
 
+	artist := filterArtist(event, result.Artists.Artists)
+
 	sp.response = &spotifyResp{
 		event:  *event,
-		artist: result.Artists.Artists[0],
+		artist: artist,
 	}
 
-	return result.Artists.Artists[0], nil
+	return artist, nil
+}
+
+func filterArtist(event *db.Event, artists []spotify.FullArtist) spotify.FullArtist {
+	if len(artists) == 0 {
+		return spotify.FullArtist{}
+	}
+
+	if len(artists) > 1 {
+		exactName := lo.Filter(artists, func(l spotify.FullArtist, _ int) bool {
+			return strings.ToLower(event.Artist.String) == strings.ToLower(l.Name)
+		})
+
+		if len(exactName) > 0 {
+			return exactName[0]
+		}
+	}
+
+	return artists[0]
 }
 
 func filterImage(artist spotify.FullArtist, size float64) string {

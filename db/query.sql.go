@@ -40,14 +40,7 @@ ON CONFLICT(link) DO UPDATE SET
     name = excluded.name,
     place = excluded.place,
     status = excluded.status,
-    date = excluded.date,
-    artist = excluded.artist,
-    category = excluded.category,
-    artist_url = excluded.artist_url,
-    artist_img_url = excluded.artist_img_url,
-    reported_at_new = excluded.reported_at_new,
-    reported_at_upcoming = excluded.reported_at_upcoming,
-    created_at = excluded.created_at
+    date = excluded.date
 `
 
 type CreateEventParams struct {
@@ -95,7 +88,7 @@ func (q *Queries) GetEvent(ctx context.Context, id int64) (Event, error) {
 }
 
 const getEventsForPeriod = `-- name: GetEventsForPeriod :many
-SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, created_at FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?)
+SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, created_at FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?) ORDER BY date
 `
 
 type GetEventsForPeriodParams struct {
@@ -141,7 +134,7 @@ func (q *Queries) GetEventsForPeriod(ctx context.Context, arg GetEventsForPeriod
 }
 
 const getFreshEvents = `-- name: GetFreshEvents :many
-SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, created_at FROM events WHERE reported_at_new IS NULL
+SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, created_at FROM events WHERE reported_at_new IS NULL ORDER BY date
 `
 
 func (q *Queries) GetFreshEvents(ctx context.Context) ([]Event, error) {
@@ -187,7 +180,7 @@ SELECT id, name, place, status, link, date, artist, category, artist_url, artist
     OR category IS NULL
     OR artist_url IS NULL
     OR artist_img_url IS NULL
-)
+) ORDER BY date
 `
 
 func (q *Queries) GetNakedEvents(ctx context.Context) ([]Event, error) {

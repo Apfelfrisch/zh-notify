@@ -2,10 +2,10 @@
 SELECT * FROM events WHERE id = ? LIMIT 1;
 
 -- name: GetEventsForPeriod :many
-SELECT * FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?);
+SELECT * FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?) ORDER BY date;
 
 -- name: GetFreshEvents :many
-SELECT * FROM events WHERE reported_at_new IS NULL;
+SELECT * FROM events WHERE reported_at_new IS NULL ORDER BY date;
 
 -- name: GetNakedEvents :many
 SELECT * FROM events WHERE reported_at_upcoming IS NULL AND (
@@ -13,7 +13,7 @@ SELECT * FROM events WHERE reported_at_upcoming IS NULL AND (
     OR category IS NULL
     OR artist_url IS NULL
     OR artist_img_url IS NULL
-);
+) ORDER BY date;
 
 -- name: MarkFreshEventsAsReported :exec
 UPDATE events SET reported_at_new = ? WHERE id = ?;
@@ -30,11 +30,9 @@ ON CONFLICT(link) DO UPDATE SET
     name = excluded.name,
     place = excluded.place,
     status = excluded.status,
-    date = excluded.date,
-    artist = excluded.artist,
-    category = excluded.category,
-    artist_url = excluded.artist_url,
-    artist_img_url = excluded.artist_img_url,
-    reported_at_new = excluded.reported_at_new,
-    reported_at_upcoming = excluded.reported_at_upcoming,
-    created_at = excluded.created_at;
+    date = excluded.date;
+    -- I dont think we should update this fields on conflict - will see
+    -- artist = excluded.artist,
+    -- category = excluded.category,
+    -- artist_url = excluded.artist_url,
+    -- artist_img_url = excluded.artist_img_url;

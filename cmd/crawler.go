@@ -14,17 +14,17 @@ var crawlEventsCmd = &cobra.Command{
 	Short: "Crawl Events from " + notify.URL,
 	Args:  cobra.ExactArgs(0), // Ensure exactly one argument is passed
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return crawlEvents(cmd.Context(), notify.Must(db.NewSqliteService()).Queries)
+		events, err := notify.CrawlLinks()
+
+		if err != nil {
+			return err
+		}
+
+		return saveEvents(cmd.Context(), notify.Must(db.NewSqliteService()).Queries, events)
 	},
 }
 
-func crawlEvents(ctx context.Context, queries *db.Queries) error {
-	events, err := notify.CrawlLinks()
-
-	if err != nil {
-		return err
-	}
-
+func saveEvents(ctx context.Context, queries *db.Queries, events []notify.Event) error {
 	for _, event := range events {
 		err := queries.CreateEvent(ctx, db.CreateEventParams{
 			Name:   strings.TrimSpace(event.Name),

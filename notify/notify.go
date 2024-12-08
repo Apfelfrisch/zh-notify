@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"embed"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -16,15 +15,23 @@ import (
 
 const LOGLEVEL = "ERROR"
 const DATE_FORMAT = "02.01.06"
+const NOTIFY_DAYS_AHEAD = 15
 
 //go:embed "images"
 var files embed.FS
 
 var sb strings.Builder
 
+type SendImageParams struct {
+	ctx      context.Context
+	receiver string
+	message  string
+	image    []byte
+	mimeType string
+}
+
 type Driver interface {
-	Send(ctx context.Context, receiver string, message string) error
-	SendImage(ctx context.Context, receiver string, message string, image []byte, mimeType string) error
+	SendWithImage(arg SendImageParams) error
 }
 
 type EventRepo interface {
@@ -63,27 +70,26 @@ func NewNotificator(queries *db.Queries, sender Driver) notificator {
 }
 
 func (n notificator) SendMonthlyEvents(ctx context.Context, receiver string) {
-	nm := time.Now().AddDate(0, 1, 0)
-
-	start := time.Date(nm.Year(), nm.Month(), 1, 0, 0, 0, 0, time.Local)
-	end := start.AddDate(0, 1, 0).Add(-time.Second)
+	// endOfMonth: end of current month + 15 days
+	nm := time.Now().AddDate(0, 0, NOTIFY_DAYS_AHEAD)
+	startOfMonth := time.Date(nm.Year(), nm.Month(), 1, 0, 0, 0, 0, time.Local)
+	endOfMonth := startOfMonth.AddDate(0, 1, 0).Add(-time.Second)
 
 	events, _ := n.queries.GetEventsForPeriod(ctx, db.GetEventsForPeriodParams{
-		Date:   start,
-		Date_2: end,
+		Date:   time.Now(),
+		Date_2: endOfMonth,
 	})
 
 	for _, event := range events {
-		err := n.sender.SendImage(
-			ctx,
-			receiver,
-			buildMessage(event),
-			getEventImage(event),
-			"image/jpeg",
-		)
+		err := n.sender.SendWithImage(SendImageParams{
+			ctx:      ctx,
+			receiver: receiver,
+			message:  buildMessage(event, true),
+			image:    getEventImage(event),
+			mimeType: "image/jpeg",
+		})
 
 		if err != nil {
-			fmt.Println(err.Error())
 			continue
 		}
 
@@ -98,13 +104,13 @@ func (n notificator) SendFreshEvents(ctx context.Context, receiver string) {
 	events, _ := n.queries.GetFreshEvents(ctx)
 
 	for _, event := range events {
-		n.sender.SendImage(
-			ctx,
-			receiver,
-			buildMessage(event),
-			getEventImage(event),
-			"image/jpeg",
-		)
+		n.sender.SendWithImage(SendImageParams{
+			ctx:      ctx,
+			receiver: receiver,
+			message:  buildMessage(event, false),
+			image:    getEventImage(event),
+			mimeType: "image/jpeg",
+		})
 
 		n.queries.MarkFreshEventsAsReported(ctx, db.MarkFreshEventsAsReportedParams{
 			ReportedAtNew: sql.NullTime{Time: time.Now(), Valid: true},
@@ -113,7 +119,7 @@ func (n notificator) SendFreshEvents(ctx context.Context, receiver string) {
 	}
 }
 
-func buildMessage(event db.Event) string {
+func buildMessage(event db.Event, withPlace bool) string {
 	sb.Reset()
 	sb.WriteString(event.Name)
 	sb.WriteString("\n\n")
@@ -122,8 +128,10 @@ func buildMessage(event db.Event) string {
 	if event.ReportedAtNew.Valid {
 		sb.WriteString(" | " + event.Status)
 	}
-	sb.WriteString("\nOrt: ")
-	sb.WriteString(event.Place)
+	if withPlace {
+		sb.WriteString("\nOrt: ")
+		sb.WriteString(event.Place)
+	}
 	if event.ArtistUrl.Valid {
 		sb.WriteString("\nSpotify: " + event.ArtistUrl.String)
 	}

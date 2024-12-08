@@ -113,34 +113,39 @@ func (s *Service) Send(ctx context.Context, receiver string, message string) err
 	return nil
 }
 
-func (s *Service) SendImage(ctx context.Context, receiver string, message string, image []byte, mimeType string) error {
-	jid, err := types.ParseJID(receiver)
+func (s *Service) SendWithImage(arg SendImageParams) error {
+	jid, err := types.ParseJID(arg.receiver)
+
 	if err != nil {
 		return err
 	}
 
-	uploadedImage, err := s.Client.Upload(ctx, image, whatsmeow.MediaImage)
+	imageMessage, err := func() (*waE2E.ImageMessage, error) {
+		imageArg := imageParams{
+			ctx:      arg.ctx,
+			message:  arg.message,
+			image:    arg.image,
+			mimeType: arg.mimeType,
+		}
+		if jid.Server == "newsletter" {
+			return s.buildChannelImageMessage(imageArg)
+		}
+		return s.buildImageMessage(imageArg)
+	}()
 	if err != nil {
 		return err
-	}
-
-	imageMessage := &waE2E.ImageMessage{
-		URL:           &uploadedImage.URL,
-		DirectPath:    &uploadedImage.DirectPath,
-		MediaKey:      uploadedImage.MediaKey,
-		Mimetype:      &mimeType,
-		FileEncSHA256: uploadedImage.FileEncSHA256,
-		FileSHA256:    uploadedImage.FileSHA256,
-		FileLength:    &uploadedImage.FileLength,
-		Caption:       &message,
 	}
 
 	_, err = s.Client.SendMessage(
-		ctx,
+		arg.ctx,
 		jid,
 		&waE2E.Message{
 			ImageMessage: imageMessage,
 		},
+		// If channel pictures deos not work as expected try this
+		// whatsmeow.SendRequestExtra{
+		// 	MediaHandle: uploadedImage.Handle,
+		// }
 	)
 
 	if err != nil {
@@ -148,6 +153,52 @@ func (s *Service) SendImage(ctx context.Context, receiver string, message string
 	}
 
 	return nil
+}
+
+type imageParams struct {
+	ctx      context.Context
+	message  string
+	image    []byte
+	mimeType string
+}
+
+func (s *Service) buildImageMessage(arg imageParams) (*waE2E.ImageMessage, error) {
+	uploadedImage, err := s.Client.Upload(arg.ctx, arg.image, whatsmeow.MediaImage)
+	if err != nil {
+		return nil, err
+	}
+
+	imageMessage := &waE2E.ImageMessage{
+		URL:           &uploadedImage.URL,
+		DirectPath:    &uploadedImage.DirectPath,
+		MediaKey:      uploadedImage.MediaKey,
+		Mimetype:      &arg.mimeType,
+		FileEncSHA256: uploadedImage.FileEncSHA256,
+		FileSHA256:    uploadedImage.FileSHA256,
+		FileLength:    &uploadedImage.FileLength,
+		Caption:       &arg.message,
+	}
+
+	return imageMessage, nil
+}
+
+func (s *Service) buildChannelImageMessage(arg imageParams) (*waE2E.ImageMessage, error) {
+	uploadedImage, err := s.Client.UploadNewsletter(arg.ctx, arg.image, whatsmeow.MediaImage)
+	if err != nil {
+		return nil, err
+	}
+
+	imageMessage := &waE2E.ImageMessage{
+		Caption:  &arg.message,
+		Mimetype: &arg.mimeType,
+
+		URL:        &uploadedImage.URL,
+		DirectPath: &uploadedImage.DirectPath,
+		FileSHA256: uploadedImage.FileSHA256,
+		FileLength: &uploadedImage.FileLength,
+	}
+
+	return imageMessage, nil
 }
 
 func (s *Service) GetGroups(ctx context.Context) ([]*types.GroupInfo, error) {

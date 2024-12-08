@@ -12,7 +12,7 @@ import (
 )
 
 var notifyCmd = &cobra.Command{
-	Use:   "notify [monthly|fresh]",
+	Use:   "notify [upcoming|fresh]",
 	Short: "Broadcast Zollhaus Events",
 	Args:  validateNotifyArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -24,7 +24,7 @@ var notifyCmd = &cobra.Command{
 		switch args[0] {
 		case "fresh":
 			return notifyFresh(cmd.Context(), service)
-		case "monthly":
+		case "upcoming":
 			return notifyMonthly(cmd.Context(), service)
 		}
 
@@ -34,16 +34,15 @@ var notifyCmd = &cobra.Command{
 
 func validateNotifyArgs(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
-		return errors.New("exactly one argument is required: 'monthly' or 'fresh'")
+		return errors.New("exactly one argument is required: 'upcoming' or 'fresh'")
 	}
-	if args[0] != "monthly" && args[0] != "fresh" {
-		return fmt.Errorf("invalid argument: %s. Allowed values are 'monthly' or 'fresh'", args[0])
+	if args[0] != "upcoming" && args[0] != "fresh" {
+		return fmt.Errorf("invalid argument: %s. Allowed values are 'upcoming' or 'fresh'", args[0])
 	}
 	return nil
 }
 
 func notifyMonthly(ctx context.Context, service *db.Service) error {
-
 	senderJid := viper.GetString("SENDER_JID")
 	if senderJid == "" {
 		return errors.New("Could not read SENDER_JID from env")

@@ -12,6 +12,7 @@ import (
 const INIT_PROMT string = `Filter aus der Ankündigung den "Interpreten" und die "Kategorie" der Veranstaltung.
 - Folgende Kategorien stehen zur Verfügung: concert, reading, theatre, comedy, party, unkown.
 - Der Text zwischen () muss ignoriert werden.
+- Ignoriere "& Band".
 - Umschließe die Antwort nicht mit JSON-Markierungen.
 Antworte im folgendem json format: {"artist": "Interpreten", "category": "Kategorie"}`
 
