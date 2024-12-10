@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -57,12 +58,17 @@ func (n notificator) SendMonthlyEvents(ctx context.Context, receiver string) {
 	events, _ := n.eventRepo.GetUpcomingEvents(ctx, time.Now(), NOTIFY_DAYS_AHEAD)
 
 	for _, event := range events {
+		imageType := strings.TrimPrefix(filepath.Ext(event.ArtistImgUrl.String), ".")
+		if imageType == "" {
+			imageType = "jpeg"
+		}
+
 		err := n.sender.SendWithImage(SendImageParams{
 			ctx:      ctx,
 			receiver: receiver,
 			message:  buildMessage(event, true),
 			image:    getEventImage(event),
-			mimeType: "image/jpeg",
+			mimeType: "image/" + imageType,
 		})
 
 		if err != nil {
