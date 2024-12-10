@@ -8,6 +8,7 @@ import (
 
 	"github.com/apfelfrisch/zh-notify/db"
 	"github.com/apfelfrisch/zh-notify/notify"
+	"github.com/apfelfrisch/zh-notify/util"
 	"github.com/mdp/qrterminal"
 	"github.com/spf13/cobra"
 )
@@ -17,7 +18,7 @@ var linkAccountCmd = &cobra.Command{
 	Short: "Link a whatsapp account, to send events",
 	Args:  cobra.ExactArgs(0), // Ensure exactly one argument is passed
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return linkAccount(cmd.Context(), notify.Must(db.NewSqliteService()).Db)
+		return linkAccount(cmd.Context(), util.Must(db.NewSqliteService()).Db)
 	},
 }
 

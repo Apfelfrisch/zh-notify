@@ -12,5 +12,6 @@ create table events
     artist_img_url TEXT,
     reported_at_new DATETIME,
     reported_at_upcoming DATETIME,
+    postponed_date DATETIME,
     created_at TIMESTAMP not null DEFAULT CURRENT_TIMESTAMP
 );

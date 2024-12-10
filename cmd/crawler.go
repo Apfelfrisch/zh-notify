@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"context"
-	"strings"
 
 	"github.com/apfelfrisch/zh-notify/db"
 	"github.com/apfelfrisch/zh-notify/notify"
+	"github.com/apfelfrisch/zh-notify/util"
 	"github.com/spf13/cobra"
 )
 
@@ -20,21 +20,15 @@ var crawlEventsCmd = &cobra.Command{
 			return err
 		}
 
-		return saveEvents(cmd.Context(), notify.Must(db.NewSqliteService()).Queries, events)
+		return saveEvents(cmd.Context(), notify.NewDbEventRepo(util.Must(db.NewSqliteService()).Queries), events)
 	},
 }
 
-func saveEvents(ctx context.Context, queries *db.Queries, events []notify.Event) error {
-	for _, event := range events {
-		err := queries.CreateEvent(ctx, db.CreateEventParams{
-			Name:   strings.TrimSpace(event.Name),
-			Place:  strings.TrimSpace(event.Place),
-			Status: strings.TrimSpace(event.Status),
-			Link:   strings.TrimSpace(event.Link),
-			Date:   event.Date,
-		})
+func saveEvents(ctx context.Context, eventRepo notify.EventRepository, events []notify.CrawledEvent) error {
+	for _, crawledEvent := range events {
+		dbEvent, _ := eventRepo.GetByLink(ctx, crawledEvent.Link)
 
-		if err != nil {
+		if err := eventRepo.Save(ctx, crawledEvent.ToDbEvent(dbEvent)); err != nil {
 			return err
 		}
 	}

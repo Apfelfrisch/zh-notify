@@ -26,43 +26,41 @@ func prepareConnection() *sql.DB {
 }
 
 func TestSaveEvents(t *testing.T) {
+	eventTmpl := notify.CrawledEvent{Name: "event-1", Place: "place-1", Status: "available-1", Link: "link-1", Date: time.Now()}
+
 	t.Run("write new event", func(t *testing.T) {
-		queries := db.New(prepareConnection())
-		events := []notify.Event{
-			{Name: "event-1", Place: "place-1", Status: "available-1", Link: "link-1", Date: time.Now()},
-		}
+		repo := notify.NewDbEventRepo(db.New(prepareConnection()))
+		events := []notify.CrawledEvent{eventTmpl}
 
-		saveEvents(context.Background(), queries, events)
+		saveEvents(context.Background(), repo, events)
 
-		event, err := queries.GetEvent(context.Background(), 1)
+		event, err := repo.GetById(context.Background(), 1)
 		assert.Nil(t, err)
 
-		_, err = queries.GetEvent(context.Background(), 2)
+		_, err = repo.GetById(context.Background(), 2)
 		assert.NotNil(t, err)
 
-		assert.Equal(t, events[0].Name, event.Name)
-		assert.Equal(t, events[0].Place, event.Place)
-		assert.Equal(t, events[0].Status, event.Status)
-		assert.Equal(t, events[0].Link, event.Link)
-		assert.Equal(t, events[0].Date.Format("02.01.06"), event.Date.Format("02.01.06"))
+		assert.Equal(t, eventTmpl.Name, event.Name)
+		assert.Equal(t, eventTmpl.Place, event.Place)
+		assert.Equal(t, eventTmpl.Status, event.Status)
+		assert.Equal(t, eventTmpl.Link, event.Link)
+		assert.Equal(t, eventTmpl.Date.Format("02.01.06"), event.Date.Format("02.01.06"))
 		assert.False(t, event.ReportedAtNew.Valid)
 		assert.False(t, event.ReportedAtUpcoming.Valid)
 	})
 
 	t.Run("update an event", func(t *testing.T) {
-		queries := db.New(prepareConnection())
-		saveEvents(context.Background(), queries, []notify.Event{
-			{Name: "event-1", Place: "place-1", Status: "available-1", Link: "link-1", Date: time.Now()},
-		})
-		markAllAsReported(queries)
+		repo := notify.NewDbEventRepo(db.New(prepareConnection()))
+		saveEvents(context.Background(), repo, []notify.CrawledEvent{eventTmpl})
+		markAllAsReported(repo)
 
-		saveEvents(context.Background(), queries, []notify.Event{
+		saveEvents(context.Background(), repo, []notify.CrawledEvent{
 			{Name: "event-2", Place: "place-2", Status: "available-2", Link: "link-1", Date: time.Now()},
 		})
 
-		event, err := queries.GetEvent(context.Background(), 1)
+		event, err := repo.GetById(context.Background(), 1)
 		assert.Nil(t, err)
-		_, err = queries.GetEvent(context.Background(), 2)
+		_, err = repo.GetById(context.Background(), 2)
 		assert.NotNil(t, err)
 
 		assert.NotNil(t, event)
@@ -74,19 +72,40 @@ func TestSaveEvents(t *testing.T) {
 		assert.True(t, event.ReportedAtNew.Valid)
 		assert.True(t, event.ReportedAtUpcoming.Valid)
 	})
+
+	t.Run("update a prosponed event", func(t *testing.T) {
+		repo := notify.NewDbEventRepo(db.New(prepareConnection()))
+		saveEvents(context.Background(), repo, []notify.CrawledEvent{eventTmpl})
+		markAllAsReported(repo)
+
+		saveEvents(context.Background(), repo, []notify.CrawledEvent{
+			{Name: "event-2", Place: "place-2", Status: "available-2", Link: "link-1", Date: time.Now().AddDate(0, 1, 0)},
+		})
+
+		event, err := repo.GetById(context.Background(), 1)
+		assert.Nil(t, err)
+		_, err = repo.GetById(context.Background(), 2)
+		assert.NotNil(t, err)
+
+		assert.NotNil(t, event)
+		assert.NotNil(t, err)
+		assert.Equal(t, "event-2", event.Name)
+		assert.Equal(t, "place-2", event.Place)
+		assert.Equal(t, "available-2", event.Status)
+		assert.Equal(t, "link-1", event.Link)
+		assert.False(t, event.ReportedAtNew.Valid)
+		assert.False(t, event.ReportedAtUpcoming.Valid)
+		assert.True(t, event.PostponedDate.Valid)
+	})
 }
 
-func markAllAsReported(queries *db.Queries) {
-	events, _ := queries.GetFreshEvents(context.Background())
+func markAllAsReported(repo notify.EventRepository) {
+	events, _ := repo.GetFreshEvents(context.Background())
 
 	for _, event := range events {
-		queries.MarkFreshEventsAsReported(context.Background(), db.MarkFreshEventsAsReportedParams{
-			ReportedAtNew: sql.NullTime{Time: time.Now(), Valid: true},
-			ID:            event.ID,
-		})
-		queries.MarkUpcomingEventsAsReported(context.Background(), db.MarkUpcomingEventsAsReportedParams{
-			ReportedAtUpcoming: sql.NullTime{Time: time.Now(), Valid: true},
-			ID:                 event.ID,
-		})
+		event.ReportedAtNew = sql.NullTime{Time: time.Now(), Valid: true}
+		event.ReportedAtUpcoming = sql.NullTime{Time: time.Now(), Valid: true}
+
+		repo.Save(context.Background(), event)
 	}
 }

@@ -1,17 +1,22 @@
 package notify
 
 import (
+	"database/sql"
+	"math"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/apfelfrisch/zh-notify/db"
+	"github.com/apfelfrisch/zh-notify/util"
 	"github.com/gocolly/colly/v2"
 )
 
 const URL = "https://www.zollhaus-leer.com/veranstaltungen/"
 
-var location = Must(time.LoadLocation("Europe/Berlin"))
+var location = util.Must(time.LoadLocation("Europe/Berlin"))
 
-type Event struct {
+type CrawledEvent struct {
 	Name   string
 	Place  string
 	Date   time.Time
@@ -19,11 +24,29 @@ type Event struct {
 	Link   string
 }
 
-func CrawlLinks() ([]Event, error) {
+func (e CrawledEvent) ToDbEvent(dbEvent db.Event) db.Event {
+
+	// If the Event was postpone, reset repoted it again
+	if math.Abs(e.Date.Sub(dbEvent.Date).Hours()) > 23.0 {
+		dbEvent.ReportedAtUpcoming = sql.NullTime{}
+		dbEvent.ReportedAtNew = sql.NullTime{}
+		dbEvent.PostponedDate = sql.NullTime{Time: dbEvent.Date, Valid: true}
+	}
+
+	dbEvent.Date = e.Date
+	dbEvent.Name = strings.TrimSpace(e.Name)
+	dbEvent.Place = strings.TrimSpace(e.Place)
+	dbEvent.Status = strings.TrimSpace(e.Status)
+	dbEvent.Link = strings.TrimSpace(e.Link)
+
+	return dbEvent
+}
+
+func CrawlLinks() ([]CrawledEvent, error) {
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(1)
 
-	var events []Event
+	var events []CrawledEvent
 
 	c := colly.NewCollector()
 
@@ -32,7 +55,7 @@ func CrawlLinks() ([]Event, error) {
 	})
 
 	c.OnHTML(".zhcal", func(e *colly.HTMLElement) {
-		event := Event{}
+		event := CrawledEvent{}
 
 		e.ForEachWithBreak(".zhcalband", func(i int, e *colly.HTMLElement) bool {
 			event.Name = e.Text

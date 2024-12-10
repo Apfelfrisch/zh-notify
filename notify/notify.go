@@ -14,7 +14,7 @@ import (
 )
 
 const LOGLEVEL = "ERROR"
-const DATE_FORMAT = "02.01.06"
+const DATE_FORMAT = "02.01.‘06"
 const NOTIFY_DAYS_AHEAD = 15
 
 //go:embed "images"
@@ -34,22 +34,6 @@ type Driver interface {
 	SendWithImage(arg SendImageParams) error
 }
 
-type EventRepo interface {
-	CreateEvent(ctx context.Context, arg db.CreateEventParams) error
-	GetEvent(ctx context.Context, id int64) (db.Event, error)
-	GetFreshEvents(ctx context.Context) ([]db.Event, error)
-	GetEventsForPeriod(ctx context.Context, arg db.GetEventsForPeriodParams) ([]db.Event, error)
-	MarkFreshEventsAsReported(ctx context.Context, arg db.MarkFreshEventsAsReportedParams) error
-	MarkUpcomingEventsAsReported(ctx context.Context, arg db.MarkUpcomingEventsAsReportedParams) error
-}
-
-func Must[T any](obj T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
 func NewWhatsAppDriver(db *sql.DB, senderJid string) Driver {
 	sender, err := ConnectWhatsApp(db, senderJid)
 
@@ -61,24 +45,16 @@ func NewWhatsAppDriver(db *sql.DB, senderJid string) Driver {
 }
 
 type notificator struct {
-	queries EventRepo
-	sender  Driver
+	eventRepo EventRepository
+	sender    Driver
 }
 
-func NewNotificator(queries *db.Queries, sender Driver) notificator {
-	return notificator{queries, sender}
+func NewNotificator(eventRepo EventRepository, sender Driver) notificator {
+	return notificator{eventRepo, sender}
 }
 
 func (n notificator) SendMonthlyEvents(ctx context.Context, receiver string) {
-	// endOfMonth: end of current month + 15 days
-	nm := time.Now().AddDate(0, 0, NOTIFY_DAYS_AHEAD)
-	startOfMonth := time.Date(nm.Year(), nm.Month(), 1, 0, 0, 0, 0, time.Local)
-	endOfMonth := startOfMonth.AddDate(0, 1, 0).Add(-time.Second)
-
-	events, _ := n.queries.GetEventsForPeriod(ctx, db.GetEventsForPeriodParams{
-		Date:   time.Now(),
-		Date_2: endOfMonth,
-	})
+	events, _ := n.eventRepo.GetUpcomingEvents(ctx, time.Now(), NOTIFY_DAYS_AHEAD)
 
 	for _, event := range events {
 		err := n.sender.SendWithImage(SendImageParams{
@@ -93,15 +69,14 @@ func (n notificator) SendMonthlyEvents(ctx context.Context, receiver string) {
 			continue
 		}
 
-		n.queries.MarkUpcomingEventsAsReported(ctx, db.MarkUpcomingEventsAsReportedParams{
-			ReportedAtUpcoming: sql.NullTime{Time: time.Now(), Valid: true},
-			ID:                 event.ID,
-		})
+		event.ReportedAtUpcoming = sql.NullTime{Time: time.Now(), Valid: true}
+
+		n.eventRepo.Save(ctx, event)
 	}
 }
 
 func (n notificator) SendFreshEvents(ctx context.Context, receiver string) {
-	events, _ := n.queries.GetFreshEvents(ctx)
+	events, _ := n.eventRepo.GetFreshEvents(ctx)
 
 	for _, event := range events {
 		n.sender.SendWithImage(SendImageParams{
@@ -112,10 +87,9 @@ func (n notificator) SendFreshEvents(ctx context.Context, receiver string) {
 			mimeType: "image/jpeg",
 		})
 
-		n.queries.MarkFreshEventsAsReported(ctx, db.MarkFreshEventsAsReportedParams{
-			ReportedAtNew: sql.NullTime{Time: time.Now(), Valid: true},
-			ID:            event.ID,
-		})
+		event.ReportedAtNew = sql.NullTime{Time: time.Now(), Valid: true}
+
+		n.eventRepo.Save(ctx, event)
 	}
 }
 
@@ -123,17 +97,31 @@ func buildMessage(event db.Event, withPlace bool) string {
 	sb.Reset()
 	sb.WriteString(event.Name)
 	sb.WriteString("\n\n")
-	sb.WriteString(event.Date.Format(DATE_FORMAT))
+
+	if !event.PostponedDate.Valid {
+		sb.WriteString("*")
+		sb.WriteString(event.Date.Format(DATE_FORMAT))
+		sb.WriteString("*")
+	} else {
+		sb.WriteString("~")
+		sb.WriteString(event.Date.Format(DATE_FORMAT))
+		sb.WriteString("~ : *")
+		sb.WriteString(event.Date.Format(DATE_FORMAT))
+		sb.WriteString("*")
+	}
+
 	// When set, this is the monthly report
 	if event.ReportedAtNew.Valid {
-		sb.WriteString(" | " + event.Status)
+		sb.WriteString(" | ")
+		sb.WriteString(event.Status)
 	}
 	if withPlace {
 		sb.WriteString("\nOrt: ")
 		sb.WriteString(event.Place)
 	}
 	if event.ArtistUrl.Valid {
-		sb.WriteString("\nSpotify: " + event.ArtistUrl.String)
+		sb.WriteString("\nSpotify: ")
+		sb.WriteString(event.ArtistUrl.String)
 	}
 	sb.WriteString("\nInfo: ")
 	sb.WriteString(event.Link)

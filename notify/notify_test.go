@@ -55,7 +55,7 @@ func TestSendUpcomingEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			driver := InMemoryEventDriver{}
 			repo := InMemoryEventRepo{events: test.events}
-			notificator := notificator{queries: &repo, sender: &driver}
+			notificator := notificator{&repo, &driver}
 
 			notificator.SendMonthlyEvents(context.Background(), "receiver")
 
@@ -80,7 +80,7 @@ func TestSendUpcomingEvents(t *testing.T) {
 				Name:               "Event 1",
 			},
 		}}
-		notificator := notificator{queries: &repo, sender: &driver}
+		notificator := notificator{&repo, &driver}
 
 		notificator.SendMonthlyEvents(context.Background(), "receiver")
 
@@ -118,7 +118,7 @@ func TestSendFreshEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			driver := InMemoryEventDriver{}
 			repo := InMemoryEventRepo{events: test.events}
-			notificator := notificator{queries: &repo, sender: &driver}
+			notificator := notificator{&repo, &driver}
 
 			notificator.SendFreshEvents(context.Background(), "receiver")
 
@@ -142,7 +142,7 @@ func TestSendFreshEvents(t *testing.T) {
 				Name: "Event 1",
 			},
 		}}
-		notificator := notificator{queries: &repo, sender: &driver}
+		notificator := notificator{&repo, &driver}
 
 		notificator.SendFreshEvents(context.Background(), "receiver")
 
@@ -152,27 +152,32 @@ func TestSendFreshEvents(t *testing.T) {
 	})
 }
 
+type InMemoryEventDriver struct {
+	message []string
+}
+
+func (d *InMemoryEventDriver) SendWithImage(arg SendImageParams) error {
+	d.message = append(d.message, arg.message)
+	return nil
+}
+
 type InMemoryEventRepo struct {
 	events []db.Event
 }
 
-func (er *InMemoryEventRepo) CreateEvent(ctx context.Context, arg db.CreateEventParams) error {
-	return errors.New("unimplemented")
-}
-
-func (er *InMemoryEventRepo) GetEvent(ctx context.Context, id int64) (db.Event, error) {
-	return db.Event{}, errors.New("unimplemented")
-}
-
-func (er *InMemoryEventRepo) GetEventsForPeriod(ctx context.Context, arg db.GetEventsForPeriodParams) ([]db.Event, error) {
+func (er *InMemoryEventRepo) GetUpcomingEvents(ctx context.Context, fromDate time.Time, daysAhead int) ([]db.Event, error) {
 	return lo.Filter(er.events, func(event db.Event, index int) bool {
+		nm := fromDate.AddDate(0, 0, daysAhead)
+		startOfMonth := time.Date(nm.Year(), nm.Month(), 1, 0, 0, 0, 0, time.Local)
+		endOfMonth := startOfMonth.AddDate(0, 1, 0).Add(-time.Second)
+
 		if event.ReportedAtUpcoming.Valid {
 			return false
 		}
-		if event.Date.Before(arg.Date) {
+		if event.Date.Before(fromDate) {
 			return false
 		}
-		if event.Date.After(arg.Date_2) {
+		if event.Date.After(endOfMonth) {
 			return false
 		}
 		return true
@@ -188,31 +193,24 @@ func (er *InMemoryEventRepo) GetFreshEvents(ctx context.Context) ([]db.Event, er
 	}), nil
 }
 
-func (er *InMemoryEventRepo) MarkFreshEventsAsReported(ctx context.Context, arg db.MarkFreshEventsAsReportedParams) error {
+func (er *InMemoryEventRepo) GetById(ctx context.Context, id int64) (db.Event, error) {
+	return db.Event{}, errors.New("unimplemented")
+}
+
+func (er *InMemoryEventRepo) GetByLink(ctx context.Context, link string) (db.Event, error) {
+	return db.Event{}, errors.New("unimplemented")
+}
+
+func (er *InMemoryEventRepo) GetNakedEvents(ctx context.Context) ([]db.Event, error) {
+	return []db.Event{}, errors.New("unimplemented")
+}
+
+func (er *InMemoryEventRepo) Save(ctx context.Context, event db.Event) error {
 	for i := range er.events {
-		if er.events[i].ID != arg.ID {
+		if er.events[i].ID != event.ID {
 			continue
 		}
-		er.events[i].ReportedAtNew = arg.ReportedAtNew
+		er.events[i] = event
 	}
-	return nil
-}
-
-func (er *InMemoryEventRepo) MarkUpcomingEventsAsReported(ctx context.Context, arg db.MarkUpcomingEventsAsReportedParams) error {
-	for i := range er.events {
-		if er.events[i].ID != arg.ID {
-			continue
-		}
-		er.events[i].ReportedAtUpcoming = arg.ReportedAtUpcoming
-	}
-	return nil
-}
-
-type InMemoryEventDriver struct {
-	message []string
-}
-
-func (d *InMemoryEventDriver) SendWithImage(arg SendImageParams) error {
-	d.message = append(d.message, arg.message)
 	return nil
 }

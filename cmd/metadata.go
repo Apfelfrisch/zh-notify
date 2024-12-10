@@ -40,7 +40,7 @@ var updateMetadataCmd = &cobra.Command{
 
 		return updateMetadata(
 			cmd.Context(),
-			service.Queries,
+			notify.NewDbEventRepo(service.Queries),
 			notify.NewMetaDataService(chatGptToken, clientcredentials.Config{
 				ClientID:     spotifyId,
 				ClientSecret: sporitySecret,
@@ -50,8 +50,8 @@ var updateMetadataCmd = &cobra.Command{
 	},
 }
 
-func updateMetadata(ctx context.Context, queries *db.Queries, service notify.MetaDataService) error {
-	events, err := queries.GetNakedEvents(ctx)
+func updateMetadata(ctx context.Context, eventRepo notify.EventRepository, service notify.MetaDataService) error {
+	events, err := eventRepo.GetNakedEvents(ctx)
 
 	if err != nil {
 		return err
@@ -84,13 +84,7 @@ func updateMetadata(ctx context.Context, queries *db.Queries, service notify.Met
 			fmt.Println(err)
 		}
 
-		queries.AddMetaData(ctx, db.AddMetaDataParams{
-			Artist:       event.Artist,
-			Category:     event.Category,
-			ArtistUrl:    event.ArtistUrl,
-			ArtistImgUrl: event.ArtistImgUrl,
-			ID:           event.ID,
-		})
+		eventRepo.Save(ctx, event)
 	}
 
 	return nil

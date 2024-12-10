@@ -22,5 +22,6 @@ type Event struct {
 	ArtistImgUrl       sql.NullString
 	ReportedAtNew      sql.NullTime
 	ReportedAtUpcoming sql.NullTime
+	PostponedDate      sql.NullTime
 	CreatedAt          time.Time
 }

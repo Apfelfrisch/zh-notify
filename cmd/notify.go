@@ -54,7 +54,7 @@ func notifyMonthly(ctx context.Context, service *db.Service) error {
 	}
 
 	notificator := notify.NewNotificator(
-		service.Queries,
+		notify.NewDbEventRepo(service.Queries),
 		notify.NewWhatsAppDriver(service.Db, senderJid),
 	)
 
@@ -80,7 +80,7 @@ func notifyFresh(ctx context.Context, service *db.Service) error {
 	}
 
 	notificator := notify.NewNotificator(
-		service.Queries,
+		notify.NewDbEventRepo(service.Queries),
 		notify.NewWhatsAppDriver(service.Db, senderJid),
 	)
 

@@ -63,7 +63,7 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) error 
 }
 
 const getEvent = `-- name: GetEvent :one
-SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, created_at FROM events WHERE id = ? LIMIT 1
+SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, postponed_date, created_at FROM events WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetEvent(ctx context.Context, id int64) (Event, error) {
@@ -82,13 +82,40 @@ func (q *Queries) GetEvent(ctx context.Context, id int64) (Event, error) {
 		&i.ArtistImgUrl,
 		&i.ReportedAtNew,
 		&i.ReportedAtUpcoming,
+		&i.PostponedDate,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getEventByLink = `-- name: GetEventByLink :one
+SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, postponed_date, created_at FROM events WHERE link = ? LIMIT 1
+`
+
+func (q *Queries) GetEventByLink(ctx context.Context, link string) (Event, error) {
+	row := q.db.QueryRowContext(ctx, getEventByLink, link)
+	var i Event
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Place,
+		&i.Status,
+		&i.Link,
+		&i.Date,
+		&i.Artist,
+		&i.Category,
+		&i.ArtistUrl,
+		&i.ArtistImgUrl,
+		&i.ReportedAtNew,
+		&i.ReportedAtUpcoming,
+		&i.PostponedDate,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getEventsForPeriod = `-- name: GetEventsForPeriod :many
-SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, created_at FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?) ORDER BY date
+SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, postponed_date, created_at FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?) ORDER BY date
 `
 
 type GetEventsForPeriodParams struct {
@@ -118,6 +145,7 @@ func (q *Queries) GetEventsForPeriod(ctx context.Context, arg GetEventsForPeriod
 			&i.ArtistImgUrl,
 			&i.ReportedAtNew,
 			&i.ReportedAtUpcoming,
+			&i.PostponedDate,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -134,7 +162,7 @@ func (q *Queries) GetEventsForPeriod(ctx context.Context, arg GetEventsForPeriod
 }
 
 const getFreshEvents = `-- name: GetFreshEvents :many
-SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, created_at FROM events WHERE reported_at_new IS NULL ORDER BY date
+SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, postponed_date, created_at FROM events WHERE reported_at_new IS NULL ORDER BY date
 `
 
 func (q *Queries) GetFreshEvents(ctx context.Context) ([]Event, error) {
@@ -159,6 +187,7 @@ func (q *Queries) GetFreshEvents(ctx context.Context) ([]Event, error) {
 			&i.ArtistImgUrl,
 			&i.ReportedAtNew,
 			&i.ReportedAtUpcoming,
+			&i.PostponedDate,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -175,7 +204,7 @@ func (q *Queries) GetFreshEvents(ctx context.Context) ([]Event, error) {
 }
 
 const getNakedEvents = `-- name: GetNakedEvents :many
-SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, created_at FROM events WHERE reported_at_upcoming IS NULL AND (
+SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, postponed_date, created_at FROM events WHERE reported_at_upcoming IS NULL AND (
     artist IS NULL
     OR category IS NULL
     OR artist_url IS NULL
@@ -205,6 +234,7 @@ func (q *Queries) GetNakedEvents(ctx context.Context) ([]Event, error) {
 			&i.ArtistImgUrl,
 			&i.ReportedAtNew,
 			&i.ReportedAtUpcoming,
+			&i.PostponedDate,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -245,5 +275,58 @@ type MarkUpcomingEventsAsReportedParams struct {
 
 func (q *Queries) MarkUpcomingEventsAsReported(ctx context.Context, arg MarkUpcomingEventsAsReportedParams) error {
 	_, err := q.db.ExecContext(ctx, markUpcomingEventsAsReported, arg.ReportedAtUpcoming, arg.ID)
+	return err
+}
+
+const updateEvent = `-- name: UpdateEvent :exec
+UPDATE events
+SET
+    name = ?,
+    place = ?,
+    status = ?,
+    link = ?,
+    date = ?,
+    artist = ?,
+    reported_at_new = ?,
+    reported_at_upcoming = ?,
+    category = ?,
+    artist_url = ?,
+    artist_img_url = ?,
+    postponed_date = ?
+WHERE id = ?
+`
+
+type UpdateEventParams struct {
+	Name               string
+	Place              string
+	Status             string
+	Link               string
+	Date               time.Time
+	Artist             sql.NullString
+	ReportedAtNew      sql.NullTime
+	ReportedAtUpcoming sql.NullTime
+	Category           sql.NullString
+	ArtistUrl          sql.NullString
+	ArtistImgUrl       sql.NullString
+	PostponedDate      sql.NullTime
+	ID                 int64
+}
+
+func (q *Queries) UpdateEvent(ctx context.Context, arg UpdateEventParams) error {
+	_, err := q.db.ExecContext(ctx, updateEvent,
+		arg.Name,
+		arg.Place,
+		arg.Status,
+		arg.Link,
+		arg.Date,
+		arg.Artist,
+		arg.ReportedAtNew,
+		arg.ReportedAtUpcoming,
+		arg.Category,
+		arg.ArtistUrl,
+		arg.ArtistImgUrl,
+		arg.PostponedDate,
+		arg.ID,
+	)
 	return err
 }

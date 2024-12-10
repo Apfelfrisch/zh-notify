@@ -1,6 +1,9 @@
 -- name: GetEvent :one
 SELECT * FROM events WHERE id = ? LIMIT 1;
 
+-- name: GetEventByLink :one
+SELECT * FROM events WHERE link = ? LIMIT 1;
+
 -- name: GetEventsForPeriod :many
 SELECT * FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?) ORDER BY date;
 
@@ -23,6 +26,23 @@ UPDATE events SET reported_at_upcoming = ? WHERE id = ?;
 
 -- name: AddMetaData :exec
 UPDATE events SET artist = ?, category = ?, artist_url = ?, artist_img_url = ? WHERE id = ?;
+
+-- name: UpdateEvent :exec
+UPDATE events
+SET
+    name = ?,
+    place = ?,
+    status = ?,
+    link = ?,
+    date = ?,
+    artist = ?,
+    reported_at_new = ?,
+    reported_at_upcoming = ?,
+    category = ?,
+    artist_url = ?,
+    artist_img_url = ?,
+    postponed_date = ?
+WHERE id = ?;
 
 -- name: CreateEvent :exec
 INSERT INTO events (name, place, status, link, date) VALUES (?, ?, ?, ?, ?)
