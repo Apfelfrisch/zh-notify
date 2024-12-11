@@ -37,7 +37,7 @@ func (sp *spotifyService) Init() error {
 	return nil
 }
 
-func (sp *spotifyService) SetArtistUrl(event *db.Event) error {
+func (sp *spotifyService) setArtistUrl(event *db.Event) error {
 	if !event.Artist.Valid || !(event.Category.String == "concert" || event.Category.String == "comedy") {
 		return nil
 	}
@@ -57,7 +57,7 @@ func (sp *spotifyService) SetArtistUrl(event *db.Event) error {
 	return nil
 }
 
-func (sp *spotifyService) SetArtistImgUrl(event *db.Event) error {
+func (sp *spotifyService) setArtistImgUrl(event *db.Event) error {
 	if !event.Artist.Valid || !(event.Category.String == "concert" || event.Category.String == "comedy") {
 		return nil
 	}

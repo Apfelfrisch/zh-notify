@@ -51,7 +51,7 @@ func (oai *openAiParser) Init() error {
 	return err
 }
 
-func (oai *openAiParser) SetArtist(event *db.Event) error {
+func (oai *openAiParser) setArtist(event *db.Event) error {
 	if event.Artist.Valid {
 		return nil
 	}
@@ -69,7 +69,7 @@ func (oai *openAiParser) SetArtist(event *db.Event) error {
 	return nil
 }
 
-func (oai *openAiParser) SetCategory(event *db.Event) error {
+func (oai *openAiParser) setCategory(event *db.Event) error {
 	if event.Category.Valid {
 		return nil
 	}

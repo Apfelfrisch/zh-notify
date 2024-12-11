@@ -6,7 +6,6 @@ import (
 	"math"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/apfelfrisch/zh-notify/db"
@@ -145,10 +144,4 @@ func CrawlLinks() ([]CrawledEvent, error) {
 	waitGroup.Wait()
 
 	return events, nil
-}
-
-func TestCrawlLinks(t *testing.T) {
-	t.Run("test crawl zollhaus-leer", func(t *testing.T) {
-		t.Errorf("Done")
-	})
 }

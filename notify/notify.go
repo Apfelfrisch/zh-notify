@@ -111,7 +111,7 @@ func buildMessage(event db.Event, withPlace bool) string {
 		sb.WriteString("*")
 	} else {
 		sb.WriteString("~")
-		sb.WriteString(event.Date.Format(DATE_FORMAT))
+		sb.WriteString(event.PostponedDate.Time.Format(DATE_FORMAT))
 		sb.WriteString("~ : *")
 		sb.WriteString(event.Date.Format(DATE_FORMAT))
 		sb.WriteString("*")

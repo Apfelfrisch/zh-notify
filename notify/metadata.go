@@ -45,17 +45,17 @@ func (md *metaDataService) Init() error {
 }
 
 func (md *metaDataService) SetArtist(event *db.Event) error {
-	return md.openAi.SetArtist(event)
+	return md.openAi.setArtist(event)
 }
 
 func (md *metaDataService) SetCategory(event *db.Event) error {
-	return md.openAi.SetCategory(event)
+	return md.openAi.setCategory(event)
 }
 
 func (md *metaDataService) SetArtistUrl(event *db.Event) error {
-	return md.spotify.SetArtistUrl(event)
+	return md.spotify.setArtistUrl(event)
 }
 
 func (md *metaDataService) SetArtistImgUrl(event *db.Event) error {
-	return md.spotify.SetArtistImgUrl(event)
+	return md.spotify.setArtistImgUrl(event)
 }
