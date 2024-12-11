@@ -9,6 +9,7 @@ import (
 
 	"github.com/apfelfrisch/zh-notify/db"
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSendUpcomingEvents(t *testing.T) {
@@ -59,14 +60,12 @@ func TestSendUpcomingEvents(t *testing.T) {
 
 			notificator.SendMonthlyEvents(context.Background(), "receiver")
 
-			if len(driver.message) != test.sendMessageCount {
-				t.Errorf("got %v send message(s), want %v", len(driver.message), test.sendMessageCount)
-			}
-
-			markedAsSend := lo.Filter(repo.events, func(event db.Event, index int) bool { return event.ReportedAtUpcoming.Valid })
-			if len(markedAsSend) != test.sendMessageCount {
-				t.Errorf("got %v market as send message(s), want %v", len(markedAsSend), test.sendMessageCount)
-			}
+			assert.Len(t, driver.message, test.sendMessageCount)
+			assert.Len(
+				t,
+				lo.Filter(repo.events, func(event db.Event, index int) bool { return event.ReportedAtUpcoming.Valid }),
+				test.sendMessageCount,
+			)
 		})
 	}
 
@@ -84,9 +83,7 @@ func TestSendUpcomingEvents(t *testing.T) {
 
 		notificator.SendMonthlyEvents(context.Background(), "receiver")
 
-		if len(driver.message) != 0 {
-			t.Errorf("got %v message(s), want %v", len(driver.message), 0)
-		}
+		assert.Len(t, driver.message, 0)
 	})
 }
 
@@ -122,14 +119,12 @@ func TestSendFreshEvents(t *testing.T) {
 
 			notificator.SendFreshEvents(context.Background(), "receiver")
 
-			if len(driver.message) != test.sendMessageCount {
-				t.Errorf("got %v send message(s), want %v", len(driver.message), test.sendMessageCount)
-			}
-
-			markedAsSend := lo.Filter(repo.events, func(event db.Event, index int) bool { return event.ReportedAtNew.Valid })
-			if len(markedAsSend) != len(test.events) {
-				t.Errorf("got %v market as send message(s), want %v", len(markedAsSend), test.sendMessageCount)
-			}
+			assert.Len(t, driver.message, test.sendMessageCount)
+			assert.Len(
+				t,
+				lo.Filter(repo.events, func(event db.Event, index int) bool { return event.ReportedAtNew.Valid }),
+				len(test.events),
+			)
 		})
 	}
 
@@ -146,10 +141,21 @@ func TestSendFreshEvents(t *testing.T) {
 
 		notificator.SendFreshEvents(context.Background(), "receiver")
 
-		if len(driver.message) != 0 {
-			t.Errorf("got %v message(s), want %v", len(driver.message), 0)
-		}
+		assert.Len(t, driver.message, 0)
 	})
+
+	// Todo...
+	// t.Run("....", func(t *testing.T) {
+	// 	mimeType, image := getEventImage(db.Event{
+	// 		ArtistImgUrl: sql.NullString{String: "https://www.zollhaus-leer.com/wp-content/uploads/2024/11/Kachel_Schlagzeugmafia.png", Valid: true},
+	// 	})
+
+	// 	file, _ := os.Create("test.png")
+	// 	defer file.Close()
+	// 	file.Write(image)
+
+	// 	fmt.Println(mimeType)
+	// })
 }
 
 type InMemoryEventDriver struct {

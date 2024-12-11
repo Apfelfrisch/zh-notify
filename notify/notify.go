@@ -1,22 +1,24 @@
 package notify
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"embed"
-	"io"
 	"log"
+	"mime"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/apfelfrisch/zh-notify/db"
+	"github.com/disintegration/imaging"
 )
 
 const LOGLEVEL = "ERROR"
 const DATE_FORMAT = "02.01.‘06"
 const NOTIFY_DAYS_AHEAD = 15
+const MAX_IMAGE_SIZE = 500
 
 //go:embed "images"
 var files embed.FS
@@ -58,17 +60,14 @@ func (n notificator) SendMonthlyEvents(ctx context.Context, receiver string) {
 	events, _ := n.eventRepo.GetUpcomingEvents(ctx, time.Now(), NOTIFY_DAYS_AHEAD)
 
 	for _, event := range events {
-		imageType := strings.TrimPrefix(filepath.Ext(event.ArtistImgUrl.String), ".")
-		if imageType == "" {
-			imageType = "jpeg"
-		}
+		mimeType, image := getEventImage(event)
 
 		err := n.sender.SendWithImage(SendImageParams{
 			ctx:      ctx,
 			receiver: receiver,
 			message:  buildMessage(event, true),
-			image:    getEventImage(event),
-			mimeType: "image/" + imageType,
+			image:    image,
+			mimeType: mimeType,
 		})
 
 		if err != nil {
@@ -85,12 +84,14 @@ func (n notificator) SendFreshEvents(ctx context.Context, receiver string) {
 	events, _ := n.eventRepo.GetFreshEvents(ctx)
 
 	for _, event := range events {
+		mimeType, image := getEventImage(event)
+
 		n.sender.SendWithImage(SendImageParams{
 			ctx:      ctx,
 			receiver: receiver,
 			message:  buildMessage(event, false),
-			image:    getEventImage(event),
-			mimeType: "image/jpeg",
+			image:    image,
+			mimeType: mimeType,
 		})
 
 		event.ReportedAtNew = sql.NullTime{Time: time.Now(), Valid: true}
@@ -134,7 +135,7 @@ func buildMessage(event db.Event, withPlace bool) string {
 	return sb.String()
 }
 
-func getEventImage(event db.Event) []byte {
+func getEventImage(event db.Event) (string, []byte) {
 	if !event.ArtistImgUrl.Valid {
 		return getFallbackImge(event)
 	}
@@ -145,28 +146,39 @@ func getEventImage(event db.Event) []byte {
 	}
 	defer resp.Body.Close()
 
-	img, err := io.ReadAll(resp.Body)
+	format, err := imaging.FormatFromFilename(event.ArtistImgUrl.String)
+	if err != nil {
+		format, _ = imaging.FormatFromExtension(".jpeg")
+	}
+
+	img, err := imaging.Decode(resp.Body)
 	if err != nil {
 		return getFallbackImge(event)
 	}
 
-	return img
+	buf := bytes.NewBuffer([]byte{})
+
+	if err := imaging.Encode(buf, imaging.Fit(img, MAX_IMAGE_SIZE, MAX_IMAGE_SIZE, imaging.Lanczos), format); err != nil {
+		return getFallbackImge(event)
+	}
+
+	return mime.TypeByExtension("." + format.String()), buf.Bytes()
 }
 
-func getFallbackImge(event db.Event) []byte {
+func getFallbackImge(event db.Event) (string, []byte) {
 	switch event.Category.String {
 	case "comedy":
-		return getFileContent("images/comedy.jpeg")
+		return "image/jpeg", getFileContent("images/comedy.jpeg")
 	case "concert":
-		return getFileContent("images/concert.jpeg")
+		return "image/jpeg", getFileContent("images/concert.jpeg")
 	case "party":
-		return getFileContent("images/party.jpeg")
+		return "image/jpeg", getFileContent("images/party.jpeg")
 	case "theatre":
-		return getFileContent("images/theatre.jpeg")
+		return "image/jpeg", getFileContent("images/theatre.jpeg")
 	case "reading":
-		return getFileContent("images/reading.jpeg")
+		return "image/jpeg", getFileContent("images/reading.jpeg")
 	default:
-		return getFileContent("images/fallback.jpeg")
+		return "image/jpeg", getFileContent("images/fallback.jpeg")
 	}
 }
 
