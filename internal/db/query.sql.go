@@ -35,7 +35,7 @@ func (q *Queries) AddMetaData(ctx context.Context, arg AddMetaDataParams) error 
 }
 
 const createEvent = `-- name: CreateEvent :exec
-INSERT INTO events (name, place, status, link, date) VALUES (?, ?, ?, ?, ?)
+INSERT INTO events (name, place, status, link, date, artist_img_url) VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(link) DO UPDATE SET
     name = excluded.name,
     place = excluded.place,
@@ -44,11 +44,12 @@ ON CONFLICT(link) DO UPDATE SET
 `
 
 type CreateEventParams struct {
-	Name   string
-	Place  string
-	Status string
-	Link   string
-	Date   time.Time
+	Name         string
+	Place        string
+	Status       string
+	Link         string
+	Date         time.Time
+	ArtistImgUrl sql.NullString
 }
 
 func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) error {
@@ -58,6 +59,7 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) error 
 		arg.Status,
 		arg.Link,
 		arg.Date,
+		arg.ArtistImgUrl,
 	)
 	return err
 }

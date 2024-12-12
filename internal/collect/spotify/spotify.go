@@ -1,4 +1,4 @@
-package notify
+package spotify
 
 import (
 	"context"
@@ -7,25 +7,37 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/apfelfrisch/zh-notify/db"
-	"github.com/samber/lo"
+	"github.com/apfelfrisch/zh-notify/internal/db"
 
+	"github.com/samber/lo"
 	"github.com/zmb3/spotify"
 	"golang.org/x/oauth2/clientcredentials"
 )
+
+func New(id, secret string) *Service {
+	return &Service{
+		&clientcredentials.Config{
+			ClientID:     id,
+			ClientSecret: secret,
+			TokenURL:     spotify.TokenURL,
+		},
+		nil,
+		nil,
+	}
+}
 
 type spotifyResp struct {
 	event  db.Event
 	artist spotify.FullArtist
 }
 
-type spotifyService struct {
+type Service struct {
 	auth     *clientcredentials.Config
 	client   *spotify.Client
 	response *spotifyResp
 }
 
-func (sp *spotifyService) Init() error {
+func (sp *Service) Init() error {
 	accessToken, err := sp.auth.Token(context.Background())
 	if err != nil {
 		return err
@@ -37,7 +49,7 @@ func (sp *spotifyService) Init() error {
 	return nil
 }
 
-func (sp *spotifyService) setArtistUrl(event *db.Event) error {
+func (sp *Service) SetArtistUrl(event *db.Event) error {
 	if !event.Artist.Valid || !(event.Category.String == "concert" || event.Category.String == "comedy") {
 		return nil
 	}
@@ -57,7 +69,7 @@ func (sp *spotifyService) setArtistUrl(event *db.Event) error {
 	return nil
 }
 
-func (sp *spotifyService) setArtistImgUrl(event *db.Event) error {
+func (sp *Service) SetArtistImgUrl(event *db.Event) error {
 	if !event.Artist.Valid || !(event.Category.String == "concert" || event.Category.String == "comedy") {
 		return nil
 	}
@@ -77,7 +89,7 @@ func (sp *spotifyService) setArtistImgUrl(event *db.Event) error {
 	return nil
 }
 
-func (sp *spotifyService) requestArtist(event *db.Event) (spotify.FullArtist, error) {
+func (sp *Service) requestArtist(event *db.Event) (spotify.FullArtist, error) {
 	if sp.response != nil && sp.response.event.ID == event.ID && event.Artist.Valid {
 		return sp.response.artist, nil
 	}

@@ -1,4 +1,4 @@
-package notify
+package collect
 
 import (
 	"database/sql"
@@ -8,16 +8,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apfelfrisch/zh-notify/db"
-	"github.com/apfelfrisch/zh-notify/util"
+	"github.com/apfelfrisch/zh-notify/internal/db"
+	"github.com/apfelfrisch/zh-notify/internal/utils"
+
 	"github.com/gocolly/colly/v2"
 )
 
-const URL = "https://www.zollhaus-leer.com/veranstaltungen/"
+var location = utils.Must(time.LoadLocation("Europe/Berlin"))
 
-var location = util.Must(time.LoadLocation("Europe/Berlin"))
+type EventSyncCollector interface {
+	Init() error
+	SetCategory(event *db.Event) error
+	SetArtist(event *db.Event) error
+	SetArtistUrl(event *db.Event) error
+	SetArtistImgUrl(event *db.Event) error
+}
 
-type CrawledEvent struct {
+type Event struct {
 	Name         string
 	Place        string
 	Date         time.Time
@@ -26,51 +33,52 @@ type CrawledEvent struct {
 	ArtistImgUrl string
 }
 
-func (e CrawledEvent) ToDbEvent(dbEvent db.Event) db.Event {
+func (pe Event) ToDbEvent(dbEvent db.Event) db.Event {
 	if dbEvent.ID == 0 {
-		dbEvent.Date = e.Date
-		dbEvent.Name = strings.TrimSpace(e.Name)
-		dbEvent.Place = strings.TrimSpace(e.Place)
-		dbEvent.Status = strings.TrimSpace(e.Status)
-		dbEvent.Link = strings.TrimSpace(e.Link)
-		dbEvent.ArtistImgUrl = sql.NullString{String: strings.TrimSpace(e.ArtistImgUrl), Valid: true}
+		dbEvent.Date = pe.Date
+		dbEvent.Name = strings.TrimSpace(pe.Name)
+		dbEvent.Place = strings.TrimSpace(pe.Place)
+		dbEvent.Status = strings.TrimSpace(pe.Status)
+		dbEvent.Link = strings.TrimSpace(pe.Link)
+		dbEvent.ArtistImgUrl = sql.NullString{String: strings.TrimSpace(pe.ArtistImgUrl), Valid: true}
 
 		return dbEvent
 	}
 
-	// If the Event was postpone, reset repoted it again
-	if e.Date.Sub(time.Now()).Hours() > 24 && math.Abs(e.Date.Sub(dbEvent.Date).Hours()) > 23.0 {
+	// If the Event was postpone, reset report it again
+	if pe.Date.Sub(time.Now()).Hours() > 24 && math.Abs(pe.Date.Sub(dbEvent.Date).Hours()) > 23.0 {
 		dbEvent.ReportedAtUpcoming = sql.NullTime{}
 		dbEvent.ReportedAtNew = sql.NullTime{}
 		dbEvent.PostponedDate = sql.NullTime{Time: dbEvent.Date, Valid: true}
 	}
 
-	if e.Date.Sub(time.Now()).Hours() > 24 {
-		dbEvent.Date = e.Date
+	if pe.Date.Sub(time.Now()).Hours() > 24 {
+		dbEvent.Date = pe.Date
 	}
-	if strings.TrimSpace(e.Place) != "" {
-		dbEvent.Name = strings.TrimSpace(e.Name)
+
+	if strings.TrimSpace(pe.Name) != "" {
+		dbEvent.Name = strings.TrimSpace(pe.Name)
 	}
-	if strings.TrimSpace(e.Place) != "" {
-		dbEvent.Place = strings.TrimSpace(e.Place)
+	if strings.TrimSpace(pe.Place) != "" {
+		dbEvent.Place = strings.TrimSpace(pe.Place)
 	}
-	if strings.TrimSpace(e.Status) != "" {
-		dbEvent.Status = strings.TrimSpace(e.Status)
+	if strings.TrimSpace(pe.Status) != "" {
+		dbEvent.Status = strings.TrimSpace(pe.Status)
 	}
-	if strings.TrimSpace(e.Link) != "" {
-		dbEvent.Link = strings.TrimSpace(e.Link)
+	if strings.TrimSpace(pe.Link) != "" {
+		dbEvent.Link = strings.TrimSpace(pe.Link)
 	}
-	if strings.TrimSpace(e.ArtistImgUrl) != "" {
-		dbEvent.ArtistImgUrl = sql.NullString{String: strings.TrimSpace(e.ArtistImgUrl), Valid: true}
+	if strings.TrimSpace(pe.ArtistImgUrl) != "" {
+		dbEvent.ArtistImgUrl = sql.NullString{String: strings.TrimSpace(pe.ArtistImgUrl), Valid: true}
 	}
 
 	return dbEvent
 }
 
-func CrawlLinks() ([]CrawledEvent, error) {
+func CrawlEvents(url string) ([]Event, error) {
 	var waitGroup sync.WaitGroup
 
-	var events []CrawledEvent
+	var events []Event
 
 	c := colly.NewCollector()
 
@@ -79,7 +87,7 @@ func CrawlLinks() ([]CrawledEvent, error) {
 	})
 
 	c.OnHTML(".zhcal", func(e *colly.HTMLElement) {
-		event := CrawledEvent{}
+		event := Event{}
 
 		e.ForEachWithBreak(".zhcalband", func(i int, e *colly.HTMLElement) bool {
 			event.Name = e.Text
@@ -137,7 +145,7 @@ func CrawlLinks() ([]CrawledEvent, error) {
 		waitGroup.Done()
 	})
 
-	if err := c.Visit(URL); err != nil {
+	if err := c.Visit(url); err != nil {
 		return nil, err
 	}
 

@@ -1,12 +1,13 @@
-package notify
+package openai
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
 
-	"github.com/apfelfrisch/zh-notify/db"
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/apfelfrisch/zh-notify/internal/db"
+
+	sdk "github.com/sashabaranov/go-openai"
 )
 
 const INIT_PROMT string = `Filter aus der Ankündigung den "Interpreten" und die "Kategorie" der Veranstaltung.
@@ -15,6 +16,14 @@ const INIT_PROMT string = `Filter aus der Ankündigung den "Interpreten" und die
 - Ignoriere "& Band".
 - Umschließe die Antwort nicht mit JSON-Markierungen.
 Antworte im folgendem json format: {"artist": "Interpreten", "category": "Kategorie"}`
+
+func New(apiToken string) *Service {
+	return &Service{
+		client:    sdk.NewClient(apiToken),
+		initPromt: nil,
+		response:  nil,
+	}
+}
 
 type metaData struct {
 	Artist   string `json:"artist"`
@@ -26,23 +35,23 @@ type openaiResp struct {
 	metaData metaData
 }
 
-type openAiParser struct {
-	client    *openai.Client
-	initPromt *openai.ChatCompletionMessage
+type Service struct {
+	client    *sdk.Client
+	initPromt *sdk.ChatCompletionMessage
 	response  *openaiResp
 }
 
-func (oai *openAiParser) Init() error {
-	message := openai.ChatCompletionMessage{
-		Role:    openai.ChatMessageRoleUser,
+func (oai *Service) Init() error {
+	message := sdk.ChatCompletionMessage{
+		Role:    sdk.ChatMessageRoleUser,
 		Content: INIT_PROMT,
 	}
 
 	_, err := oai.client.CreateChatCompletion(
 		context.Background(),
-		openai.ChatCompletionRequest{
-			Model:    openai.GPT3Dot5Turbo,
-			Messages: []openai.ChatCompletionMessage{message},
+		sdk.ChatCompletionRequest{
+			Model:    sdk.GPT3Dot5Turbo,
+			Messages: []sdk.ChatCompletionMessage{message},
 		},
 	)
 
@@ -51,7 +60,7 @@ func (oai *openAiParser) Init() error {
 	return err
 }
 
-func (oai *openAiParser) setArtist(event *db.Event) error {
+func (oai *Service) SetArtist(event *db.Event) error {
 	if event.Artist.Valid {
 		return nil
 	}
@@ -69,7 +78,7 @@ func (oai *openAiParser) setArtist(event *db.Event) error {
 	return nil
 }
 
-func (oai *openAiParser) setCategory(event *db.Event) error {
+func (oai *Service) SetCategory(event *db.Event) error {
 	if event.Category.Valid {
 		return nil
 	}
@@ -87,23 +96,23 @@ func (oai *openAiParser) setCategory(event *db.Event) error {
 	return nil
 }
 
-func (oai *openAiParser) requestHeadlineParsing(event *db.Event) (metaData, error) {
+func (oai *Service) requestHeadlineParsing(event *db.Event) (metaData, error) {
 	if oai.response != nil && oai.response.event.ID == event.ID {
 		return oai.response.metaData, nil
 	}
 
-	messages := []openai.ChatCompletionMessage{
+	messages := []sdk.ChatCompletionMessage{
 		*oai.initPromt,
 		{
-			Role:    openai.ChatMessageRoleUser,
+			Role:    sdk.ChatMessageRoleUser,
 			Content: event.Name,
 		},
 	}
 
 	resp, err := oai.client.CreateChatCompletion(
 		context.Background(),
-		openai.ChatCompletionRequest{
-			Model:    openai.GPT3Dot5Turbo,
+		sdk.ChatCompletionRequest{
+			Model:    sdk.GPT3Dot5Turbo,
 			Messages: messages,
 		},
 	)

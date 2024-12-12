@@ -1,4 +1,4 @@
-package notify
+package whatsapp
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/apfelfrisch/zh-notify/internal/transport"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/whatsmeow"
@@ -17,13 +18,14 @@ import (
 )
 
 const DB_DIALECT = "sqlite3"
+const LOGLEVEL = "ERROR"
 
 type Service struct {
 	db     *sql.DB
 	Client *whatsmeow.Client
 }
 
-func RegisterWhatsApp(ctx context.Context, db *sql.DB, processQRCode func(qrCode string)) error {
+func Register(ctx context.Context, db *sql.DB, processQRCode func(qrCode string)) error {
 	log := waLog.Stdout("Database", LOGLEVEL, true)
 
 	container := sqlstore.NewWithDB(db, DB_DIALECT, log)
@@ -63,7 +65,7 @@ func RegisterWhatsApp(ctx context.Context, db *sql.DB, processQRCode func(qrCode
 	return errors.New("Could not link device")
 }
 
-func ConnectWhatsApp(db *sql.DB, sender string) (*Service, error) {
+func Connect(db *sql.DB, sender string) (*Service, error) {
 	log := waLog.Stdout("Database", LOGLEVEL, true)
 	container := sqlstore.NewWithDB(db, DB_DIALECT, log)
 
@@ -113,8 +115,8 @@ func (s *Service) Send(ctx context.Context, receiver string, message string) err
 	return nil
 }
 
-func (s *Service) SendWithImage(arg SendImageParams) error {
-	jid, err := types.ParseJID(arg.receiver)
+func (s *Service) SendWithImage(arg transport.SendImageParams) error {
+	jid, err := types.ParseJID(arg.Receiver)
 
 	if err != nil {
 		return err
@@ -122,10 +124,10 @@ func (s *Service) SendWithImage(arg SendImageParams) error {
 
 	imageMessage, err := func() (*waE2E.ImageMessage, error) {
 		imageArg := imageParams{
-			ctx:      arg.ctx,
-			message:  arg.message,
-			image:    arg.image,
-			mimeType: arg.mimeType,
+			ctx:      arg.Ctx,
+			message:  arg.Message,
+			image:    arg.Image,
+			mimeType: arg.MimeType,
 		}
 		if jid.Server == "newsletter" {
 			return s.buildChannelImageMessage(imageArg)
@@ -137,7 +139,7 @@ func (s *Service) SendWithImage(arg SendImageParams) error {
 	}
 
 	_, err = s.Client.SendMessage(
-		arg.ctx,
+		arg.Ctx,
 		jid,
 		&waE2E.Message{
 			ImageMessage: imageMessage,

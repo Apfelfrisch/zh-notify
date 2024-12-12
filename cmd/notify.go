@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/apfelfrisch/zh-notify/db"
-	"github.com/apfelfrisch/zh-notify/notify"
+	"github.com/apfelfrisch/zh-notify/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -16,16 +15,11 @@ var notifyCmd = &cobra.Command{
 	Short: "Broadcast Zollhaus Events",
 	Args:  validateNotifyArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		service, err := db.NewSqliteService()
-		if err != nil {
-			return err
-		}
-
 		switch args[0] {
 		case "fresh":
-			return notifyFresh(cmd.Context(), service)
+			return notifyFresh(cmd.Context())
 		case "upcoming":
-			return notifyMonthly(cmd.Context(), service)
+			return notifyMonthly(cmd.Context())
 		}
 
 		return errors.New("unexpected error occurred")
@@ -42,7 +36,7 @@ func validateNotifyArgs(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func notifyMonthly(ctx context.Context, service *db.Service) error {
+func notifyMonthly(ctx context.Context) error {
 	senderJid := viper.GetString("SENDER_JID")
 	if senderJid == "" {
 		return errors.New("Could not read SENDER_JID from env")
@@ -53,17 +47,18 @@ func notifyMonthly(ctx context.Context, service *db.Service) error {
 		return errors.New("Could not read SENDER_JID from env")
 	}
 
-	notificator := notify.NewNotificator(
-		notify.NewDbEventRepo(service.Queries),
-		notify.NewWhatsAppDriver(service.Db, senderJid),
-	)
+	notificator, err := internal.NewNotificator(senderJid)
+
+	if err != nil {
+		return err
+	}
 
 	notificator.SendMonthlyEvents(ctx, monthlyChannel)
 
 	return nil
 }
 
-func notifyFresh(ctx context.Context, service *db.Service) error {
+func notifyFresh(ctx context.Context) error {
 	senderJid := viper.GetString("SENDER_JID")
 	if senderJid == "" {
 		return errors.New("Could not read SENDER_JID from env")
@@ -79,10 +74,11 @@ func notifyFresh(ctx context.Context, service *db.Service) error {
 		return errors.New("Could not read NEW_EVENTS_CHANNEL_JID from env")
 	}
 
-	notificator := notify.NewNotificator(
-		notify.NewDbEventRepo(service.Queries),
-		notify.NewWhatsAppDriver(service.Db, senderJid),
-	)
+	notificator, err := internal.NewNotificator(senderJid)
+
+	if err != nil {
+		return err
+	}
 
 	notificator.SendFreshEvents(ctx, justAddedChannel)
 

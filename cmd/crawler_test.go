@@ -10,8 +10,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/apfelfrisch/zh-notify/db"
-	"github.com/apfelfrisch/zh-notify/notify"
+	"github.com/apfelfrisch/zh-notify/internal/collect"
+	"github.com/apfelfrisch/zh-notify/internal/db"
 )
 
 const DBProvider = "sqlite3"
@@ -19,18 +19,18 @@ const DBConnection = ":memory:"
 
 func prepareConnection() *sql.DB {
 	conn, _ := sql.Open(DBProvider, ":memory:")
-	data, _ := os.ReadFile("../db/schema.sql")
+	data, _ := os.ReadFile("../schema.sql")
 	conn.Exec(string(data))
 
 	return conn
 }
 
 func TestSaveEvents(t *testing.T) {
-	eventTmpl := notify.CrawledEvent{Name: "event-1", Place: "place-1", Status: "available-1", Link: "link-1", Date: time.Now()}
+	eventTmpl := collect.Event{Name: "event-1", Place: "place-1", Status: "available-1", Link: "link-1", Date: time.Now()}
 
 	t.Run("write new event", func(t *testing.T) {
-		repo := notify.NewDbEventRepo(db.New(prepareConnection()))
-		events := []notify.CrawledEvent{eventTmpl}
+		repo := db.NewEventRepoFromConn(prepareConnection())
+		events := []collect.Event{eventTmpl}
 
 		saveEvents(context.Background(), repo, events)
 
@@ -50,11 +50,11 @@ func TestSaveEvents(t *testing.T) {
 	})
 
 	t.Run("update an event", func(t *testing.T) {
-		repo := notify.NewDbEventRepo(db.New(prepareConnection()))
-		saveEvents(context.Background(), repo, []notify.CrawledEvent{eventTmpl})
+		repo := db.NewEventRepoFromConn(prepareConnection())
+		saveEvents(context.Background(), repo, []collect.Event{eventTmpl})
 		markAllAsReported(repo)
 
-		saveEvents(context.Background(), repo, []notify.CrawledEvent{
+		saveEvents(context.Background(), repo, []collect.Event{
 			{Name: "event-2", Place: "place-2", Status: "available-2", Link: "link-1", Date: time.Now()},
 		})
 
@@ -74,11 +74,11 @@ func TestSaveEvents(t *testing.T) {
 	})
 
 	t.Run("update a prosponed event", func(t *testing.T) {
-		repo := notify.NewDbEventRepo(db.New(prepareConnection()))
-		saveEvents(context.Background(), repo, []notify.CrawledEvent{eventTmpl})
+		repo := db.NewEventRepoFromConn(prepareConnection())
+		saveEvents(context.Background(), repo, []collect.Event{eventTmpl})
 		markAllAsReported(repo)
 
-		saveEvents(context.Background(), repo, []notify.CrawledEvent{
+		saveEvents(context.Background(), repo, []collect.Event{
 			{Name: "event-2", Place: "place-2", Status: "available-2", Link: "link-1", Date: time.Now().AddDate(0, 1, 0)},
 		})
 
@@ -99,7 +99,7 @@ func TestSaveEvents(t *testing.T) {
 	})
 }
 
-func markAllAsReported(repo notify.EventRepository) {
+func markAllAsReported(repo db.EventRepository) {
 	events, _ := repo.GetFreshEvents(context.Background())
 
 	for _, event := range events {

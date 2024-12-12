@@ -1,73 +1,62 @@
-package notify
+package internal
 
 import (
 	"bytes"
 	"context"
 	"database/sql"
-	"embed"
 	"log"
 	"mime"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/apfelfrisch/zh-notify/db"
+	"github.com/apfelfrisch/zh-notify/assets"
+	"github.com/apfelfrisch/zh-notify/internal/db"
+	"github.com/apfelfrisch/zh-notify/internal/transport"
+	"github.com/apfelfrisch/zh-notify/internal/transport/whatsapp"
+
 	"github.com/disintegration/imaging"
 )
 
-const LOGLEVEL = "ERROR"
 const DATE_FORMAT = "02.01.‘06"
 const NOTIFY_DAYS_AHEAD = 15
 const MAX_IMAGE_SIZE = 500
 
-//go:embed "images"
-var files embed.FS
-
 var sb strings.Builder
 
-type SendImageParams struct {
-	ctx      context.Context
-	receiver string
-	message  string
-	image    []byte
-	mimeType string
-}
+func NewNotificator(senderJid string) (*Notificator, error) {
+	conn, err := sql.Open("sqlite3", "database.sqlite")
 
-type Driver interface {
-	SendWithImage(arg SendImageParams) error
-}
+	if err != nil {
+		return nil, err
+	}
 
-func NewWhatsAppDriver(db *sql.DB, senderJid string) Driver {
-	sender, err := ConnectWhatsApp(db, senderJid)
+	sender, err := whatsapp.Connect(conn, senderJid)
 
 	if err != nil {
 		log.Panic(err)
 	}
 
-	return sender
+	return &Notificator{db.NewEventRepoFromConn(conn), sender}, nil
 }
 
-type notificator struct {
-	eventRepo EventRepository
-	sender    Driver
+type Notificator struct {
+	eventRepo db.EventRepository
+	sender    transport.Driver
 }
 
-func NewNotificator(eventRepo EventRepository, sender Driver) notificator {
-	return notificator{eventRepo, sender}
-}
-
-func (n notificator) SendMonthlyEvents(ctx context.Context, receiver string) {
+func (n Notificator) SendMonthlyEvents(ctx context.Context, receiver string) {
 	events, _ := n.eventRepo.GetUpcomingEvents(ctx, time.Now(), NOTIFY_DAYS_AHEAD)
 
 	for _, event := range events {
 		mimeType, image := getEventImage(event)
 
-		err := n.sender.SendWithImage(SendImageParams{
-			ctx:      ctx,
-			receiver: receiver,
-			message:  buildMessage(event, true),
-			image:    image,
-			mimeType: mimeType,
+		err := n.sender.SendWithImage(transport.SendImageParams{
+			Ctx:      ctx,
+			Receiver: receiver,
+			Message:  buildMessage(event, true),
+			Image:    image,
+			MimeType: mimeType,
 		})
 
 		if err != nil {
@@ -80,18 +69,18 @@ func (n notificator) SendMonthlyEvents(ctx context.Context, receiver string) {
 	}
 }
 
-func (n notificator) SendFreshEvents(ctx context.Context, receiver string) {
+func (n Notificator) SendFreshEvents(ctx context.Context, receiver string) {
 	events, _ := n.eventRepo.GetFreshEvents(ctx)
 
 	for _, event := range events {
 		mimeType, image := getEventImage(event)
 
-		n.sender.SendWithImage(SendImageParams{
-			ctx:      ctx,
-			receiver: receiver,
-			message:  buildMessage(event, false),
-			image:    image,
-			mimeType: mimeType,
+		n.sender.SendWithImage(transport.SendImageParams{
+			Ctx:      ctx,
+			Receiver: receiver,
+			Message:  buildMessage(event, false),
+			Image:    image,
+			MimeType: mimeType,
 		})
 
 		event.ReportedAtNew = sql.NullTime{Time: time.Now(), Valid: true}
@@ -100,7 +89,7 @@ func (n notificator) SendFreshEvents(ctx context.Context, receiver string) {
 	}
 }
 
-func buildMessage(event db.Event, withPlace bool) string {
+func buildMessage(event db.Event, withStatus bool) string {
 	sb.Reset()
 	sb.WriteString(event.Name)
 	sb.WriteString("\n\n")
@@ -117,15 +106,14 @@ func buildMessage(event db.Event, withPlace bool) string {
 		sb.WriteString("*")
 	}
 
-	// When set, this is the monthly report
-	if event.ReportedAtNew.Valid {
+	if withStatus {
 		sb.WriteString(" | ")
 		sb.WriteString(event.Status)
 	}
-	if withPlace {
-		sb.WriteString("\nOrt: ")
-		sb.WriteString(event.Place)
-	}
+
+	sb.WriteString("\nLocation: ")
+	sb.WriteString(event.Place)
+
 	if event.ArtistUrl.Valid {
 		sb.WriteString("\nSpotify: ")
 		sb.WriteString(event.ArtistUrl.String)
@@ -183,7 +171,7 @@ func getFallbackImge(event db.Event) (string, []byte) {
 }
 
 func getFileContent(name string) []byte {
-	content, err := files.ReadFile(name)
+	content, err := assets.Files.ReadFile(name)
 
 	if err != nil {
 		panic("Could not read file [" + name + "] :" + err.Error())

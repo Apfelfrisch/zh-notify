@@ -3,6 +3,7 @@ module github.com/apfelfrisch/zh-notify
 go 1.23.2
 
 require (
+	github.com/disintegration/imaging v1.6.2
 	github.com/gocolly/colly/v2 v2.1.0
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/mdp/qrterminal v1.0.1
@@ -13,7 +14,6 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/zmb3/spotify v1.3.0
 	go.mau.fi/whatsmeow v0.0.0-20241121132808-ae900cb6bee4
-	golang.org/x/image v0.23.0
 	golang.org/x/oauth2 v0.18.0
 	google.golang.org/protobuf v1.35.2
 )
@@ -26,7 +26,6 @@ require (
 	github.com/antchfx/xmlquery v1.2.4 // indirect
 	github.com/antchfx/xpath v1.1.8 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -58,6 +57,7 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/crypto v0.29.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
+	golang.org/x/image v0.23.0 // indirect
 	golang.org/x/net v0.31.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/text v0.21.0 // indirect

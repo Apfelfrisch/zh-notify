@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/apfelfrisch/zh-notify/db"
-	"github.com/apfelfrisch/zh-notify/notify"
-	"github.com/apfelfrisch/zh-notify/util"
+	"github.com/apfelfrisch/zh-notify/internal/db"
+	"github.com/apfelfrisch/zh-notify/internal/transport/whatsapp"
 	"github.com/mdp/qrterminal"
 	"github.com/spf13/cobra"
 )
@@ -18,12 +17,18 @@ var linkAccountCmd = &cobra.Command{
 	Short: "Link a whatsapp account, to send events",
 	Args:  cobra.ExactArgs(0), // Ensure exactly one argument is passed
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return linkAccount(cmd.Context(), util.Must(db.NewSqliteService()).Db)
+		conn, err := db.NewSqliteConn()
+
+		if err != nil {
+			return err
+		}
+
+		return linkAccount(cmd.Context(), conn)
 	},
 }
 
 func linkAccount(ctx context.Context, db *sql.DB) error {
-	err := notify.RegisterWhatsApp(ctx, db, func(qrCode string) {
+	err := whatsapp.Register(ctx, db, func(qrCode string) {
 		qrterminal.GenerateHalfBlock(qrCode, qrterminal.L, os.Stdout)
 	})
 

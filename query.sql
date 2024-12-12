@@ -45,7 +45,7 @@ SET
 WHERE id = ?;
 
 -- name: CreateEvent :exec
-INSERT INTO events (name, place, status, link, date) VALUES (?, ?, ?, ?, ?)
+INSERT INTO events (name, place, status, link, date, artist_img_url) VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(link) DO UPDATE SET
     name = excluded.name,
     place = excluded.place,
@@ -55,4 +55,3 @@ ON CONFLICT(link) DO UPDATE SET
     -- artist = excluded.artist,
     -- category = excluded.category,
     -- artist_url = excluded.artist_url,
-    -- artist_img_url = excluded.artist_img_url;

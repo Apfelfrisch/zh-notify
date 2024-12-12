@@ -3,14 +3,11 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/apfelfrisch/zh-notify/db"
-	"github.com/apfelfrisch/zh-notify/notify"
+	"github.com/apfelfrisch/zh-notify/internal"
+	"github.com/apfelfrisch/zh-notify/internal/db"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/zmb3/spotify"
-	"golang.org/x/oauth2/clientcredentials"
 )
 
 var updateMetadataCmd = &cobra.Command{
@@ -33,24 +30,20 @@ var updateMetadataCmd = &cobra.Command{
 			return errors.New("Could not read SENDER_JID from env")
 		}
 
-		service, err := db.NewSqliteService()
+		repo, err := db.NewDbEventRepo()
 		if err != nil {
 			return err
 		}
 
 		return updateMetadata(
 			cmd.Context(),
-			notify.NewDbEventRepo(service.Queries),
-			notify.NewMetaDataService(chatGptToken, clientcredentials.Config{
-				ClientID:     spotifyId,
-				ClientSecret: sporitySecret,
-				TokenURL:     spotify.TokenURL,
-			}),
+			repo,
+			internal.NewSyncEventCollector(chatGptToken, spotifyId, sporitySecret),
 		)
 	},
 }
 
-func updateMetadata(ctx context.Context, eventRepo notify.EventRepository, service notify.MetaDataService) error {
+func updateMetadata(ctx context.Context, eventRepo db.EventRepository, service *internal.SyncCollector) error {
 	events, err := eventRepo.GetNakedEvents(ctx)
 
 	if err != nil {
@@ -66,22 +59,8 @@ func updateMetadata(ctx context.Context, eventRepo notify.EventRepository, servi
 	}
 
 	for _, event := range events {
-		if err := service.SetCategory(&event); err != nil {
+		if err := service.Sync(&event); err != nil {
 			return err
-		}
-
-		if !event.Artist.Valid {
-			if err := service.SetArtist(&event); err != nil {
-				return err
-			}
-		}
-
-		if err := service.SetArtistUrl(&event); err != nil {
-			fmt.Println(err)
-		}
-
-		if err := service.SetArtistImgUrl(&event); err != nil {
-			fmt.Println(err)
 		}
 
 		eventRepo.Save(ctx, event)

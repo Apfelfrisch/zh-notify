@@ -1,4 +1,4 @@
-package notify
+package internal
 
 import (
 	"context"
@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apfelfrisch/zh-notify/db"
+	"github.com/apfelfrisch/zh-notify/internal/db"
+	"github.com/apfelfrisch/zh-notify/internal/transport"
+
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 )
@@ -56,16 +58,14 @@ func TestSendUpcomingEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			driver := InMemoryEventDriver{}
 			repo := InMemoryEventRepo{events: test.events}
-			notificator := notificator{&repo, &driver}
+			notificator := Notificator{&repo, &driver}
 
 			notificator.SendMonthlyEvents(context.Background(), "receiver")
 
+			sendEvents := lo.Filter(repo.events, func(event db.Event, index int) bool { return event.ReportedAtUpcoming.Valid })
+
 			assert.Len(t, driver.message, test.sendMessageCount)
-			assert.Len(
-				t,
-				lo.Filter(repo.events, func(event db.Event, index int) bool { return event.ReportedAtUpcoming.Valid }),
-				test.sendMessageCount,
-			)
+			assert.Len(t, sendEvents, test.sendMessageCount)
 		})
 	}
 
@@ -79,11 +79,36 @@ func TestSendUpcomingEvents(t *testing.T) {
 				Name:               "Event 1",
 			},
 		}}
-		notificator := notificator{&repo, &driver}
+		notificator := Notificator{&repo, &driver}
 
 		notificator.SendMonthlyEvents(context.Background(), "receiver")
 
 		assert.Len(t, driver.message, 0)
+	})
+
+	t.Run("test upcoming event content", func(t *testing.T) {
+		driver := InMemoryEventDriver{}
+		event := db.Event{
+			ID:        1,
+			Date:      time.Now().AddDate(0, 0, NOTIFY_DAYS_AHEAD),
+			Name:      "Event 1",
+			Link:      "link-1-2-3",
+			Place:     "my-location",
+			Status:    "sold out",
+			ArtistUrl: sql.NullString{String: "artist-url", Valid: true},
+		}
+		repo := InMemoryEventRepo{events: []db.Event{event}}
+		notificator := Notificator{&repo, &driver}
+
+		notificator.SendMonthlyEvents(context.Background(), "receiver")
+
+		assert.Len(t, driver.message, 1)
+
+		assert.Contains(t, driver.message[0], event.Date.Format(DATE_FORMAT))
+		assert.Contains(t, driver.message[0], event.Status)
+		assert.Contains(t, driver.message[0], "Location: "+event.Place)
+		assert.Contains(t, driver.message[0], "Spotify: "+event.ArtistUrl.String)
+		assert.Contains(t, driver.message[0], "Info: "+event.Link)
 	})
 }
 
@@ -115,7 +140,7 @@ func TestSendFreshEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			driver := InMemoryEventDriver{}
 			repo := InMemoryEventRepo{events: test.events}
-			notificator := notificator{&repo, &driver}
+			notificator := Notificator{&repo, &driver}
 
 			notificator.SendFreshEvents(context.Background(), "receiver")
 
@@ -137,11 +162,36 @@ func TestSendFreshEvents(t *testing.T) {
 				Name: "Event 1",
 			},
 		}}
-		notificator := notificator{&repo, &driver}
+		notificator := Notificator{&repo, &driver}
 
 		notificator.SendFreshEvents(context.Background(), "receiver")
 
 		assert.Len(t, driver.message, 0)
+	})
+
+	t.Run("test fresh event content", func(t *testing.T) {
+		driver := InMemoryEventDriver{}
+		event := db.Event{
+			ID:        1,
+			Date:      time.Now().AddDate(0, 0, NOTIFY_DAYS_AHEAD),
+			Name:      "Event 1",
+			Link:      "link-1-2-3",
+			Place:     "my-location",
+			Status:    "available",
+			ArtistUrl: sql.NullString{String: "artist-url", Valid: true},
+		}
+		repo := InMemoryEventRepo{events: []db.Event{event}}
+		notificator := Notificator{&repo, &driver}
+
+		notificator.SendFreshEvents(context.Background(), "receiver")
+
+		assert.Len(t, driver.message, 1)
+
+		assert.Contains(t, driver.message[0], event.Date.Format(DATE_FORMAT))
+		assert.NotContains(t, driver.message[0], event.Status)
+		assert.Contains(t, driver.message[0], "Location: "+event.Place)
+		assert.Contains(t, driver.message[0], "Spotify: "+event.ArtistUrl.String)
+		assert.Contains(t, driver.message[0], "Info: "+event.Link)
 	})
 
 	// Todo...
@@ -162,8 +212,8 @@ type InMemoryEventDriver struct {
 	message []string
 }
 
-func (d *InMemoryEventDriver) SendWithImage(arg SendImageParams) error {
-	d.message = append(d.message, arg.message)
+func (d *InMemoryEventDriver) SendWithImage(arg transport.SendImageParams) error {
+	d.message = append(d.message, arg.Message)
 	return nil
 }
 
