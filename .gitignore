@@ -1,4 +1,3 @@
-database.sqlite
-db/database.sqlite-journal
+database.sqlite*
 zh-notify
 .env
