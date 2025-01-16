@@ -5,7 +5,12 @@ SELECT * FROM events WHERE id = ? LIMIT 1;
 SELECT * FROM events WHERE link = ? LIMIT 1;
 
 -- name: GetEventsForPeriod :many
-SELECT * FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?) ORDER BY date;
+SELECT * FROM events
+    WHERE reported_at_upcoming IS NULL
+    AND (
+        DATE(date) >= DATE(?) AND DATE(date) <= DATE(?)
+    )
+ORDER BY date;
 
 -- name: GetFreshEvents :many
 SELECT * FROM events WHERE reported_at_new IS NULL ORDER BY date;

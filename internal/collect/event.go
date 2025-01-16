@@ -9,12 +9,9 @@ import (
 	"time"
 
 	"github.com/apfelfrisch/zh-notify/internal/db"
-	"github.com/apfelfrisch/zh-notify/internal/utils"
 
 	"github.com/gocolly/colly/v2"
 )
-
-var location = utils.Must(time.LoadLocation("Europe/Berlin"))
 
 type EventSyncCollector interface {
 	Init() error
@@ -98,8 +95,10 @@ func CrawlEvents(url string) ([]Event, error) {
 			event.Date, _ = time.ParseInLocation(
 				"20060102",
 				e.ChildAttr(".date", "data-showdate"),
-				location,
+				time.Local,
 			)
+			// Avoid Timezone problems
+			event.Date = event.Date.Add(time.Hour * 6)
 
 			return false
 		})

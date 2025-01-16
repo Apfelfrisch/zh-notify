@@ -117,12 +117,17 @@ func (q *Queries) GetEventByLink(ctx context.Context, link string) (Event, error
 }
 
 const getEventsForPeriod = `-- name: GetEventsForPeriod :many
-SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, postponed_date, created_at FROM events WHERE reported_at_upcoming IS NULL AND (DATE(date) >= ? and DATE(date) <= ?) ORDER BY date
+SELECT id, name, place, status, link, date, artist, category, artist_url, artist_img_url, reported_at_new, reported_at_upcoming, postponed_date, created_at FROM events
+    WHERE reported_at_upcoming IS NULL
+    AND (
+        DATE(date) >= DATE(?) AND DATE(date) <= DATE(?)
+    )
+ORDER BY date
 `
 
 type GetEventsForPeriodParams struct {
-	Date   time.Time
-	Date_2 time.Time
+	Date   interface{}
+	Date_2 interface{}
 }
 
 func (q *Queries) GetEventsForPeriod(ctx context.Context, arg GetEventsForPeriodParams) ([]Event, error) {

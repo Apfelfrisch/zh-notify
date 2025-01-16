@@ -21,7 +21,7 @@ func TestSendUpcomingEvents(t *testing.T) {
 		events           []db.Event
 	}{
 		{
-			"one match, the other is after range",
+			"one match, the others are after range",
 			1,
 			[]db.Event{
 				{ID: 1, Date: time.Now().AddDate(0, 0, NOTIFY_DAYS_AHEAD), Name: "Event 1"},
