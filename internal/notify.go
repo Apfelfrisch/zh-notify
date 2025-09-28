@@ -24,14 +24,14 @@ const MAX_IMAGE_SIZE = 500
 
 var sb strings.Builder
 
-func NewNotificator(senderJid string) (*Notificator, error) {
+func NewNotificator(ctx context.Context, senderJid string) (*Notificator, error) {
 	conn, err := sql.Open("sqlite3", "database.sqlite")
 
 	if err != nil {
 		return nil, err
 	}
 
-	sender, err := whatsapp.Connect(conn, senderJid)
+	sender, err := whatsapp.Connect(ctx, conn, senderJid)
 
 	if err != nil {
 		log.Panic(err)

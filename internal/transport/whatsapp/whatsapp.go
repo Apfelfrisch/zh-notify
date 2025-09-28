@@ -29,11 +29,11 @@ func Register(ctx context.Context, db *sql.DB, processQRCode func(qrCode string)
 	log := waLog.Stdout("Database", LOGLEVEL, true)
 
 	container := sqlstore.NewWithDB(db, DB_DIALECT, log)
-	if err := container.Upgrade(); err != nil {
+	if err := container.Upgrade(ctx); err != nil {
 		return err
 	}
 
-	deviceStore, err := container.GetFirstDevice()
+	deviceStore, err := container.GetFirstDevice(ctx)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func Register(ctx context.Context, db *sql.DB, processQRCode func(qrCode string)
 	return errors.New("Could not link device")
 }
 
-func Connect(db *sql.DB, sender string) (*Service, error) {
+func Connect(ctx context.Context, db *sql.DB, sender string) (*Service, error) {
 	log := waLog.Stdout("Database", LOGLEVEL, true)
 	container := sqlstore.NewWithDB(db, DB_DIALECT, log)
 
@@ -74,7 +74,7 @@ func Connect(db *sql.DB, sender string) (*Service, error) {
 		return nil, err
 	}
 
-	deviceStore, _ := container.GetDevice(jid)
+	deviceStore, _ := container.GetDevice(ctx, jid)
 
 	if deviceStore == nil {
 		return nil, fmt.Errorf("Could not find device for [%v]", sender)
@@ -204,7 +204,7 @@ func (s *Service) buildChannelImageMessage(arg imageParams) (*waE2E.ImageMessage
 }
 
 func (s *Service) GetGroups(ctx context.Context) ([]*types.GroupInfo, error) {
-	return s.Client.GetJoinedGroups()
+	return s.Client.GetJoinedGroups(ctx)
 }
 
 func (s *Service) Close() {

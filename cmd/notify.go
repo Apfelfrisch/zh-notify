@@ -47,7 +47,7 @@ func notifyMonthly(ctx context.Context) error {
 		return errors.New("Could not read SENDER_JID from env")
 	}
 
-	notificator, err := internal.NewNotificator(senderJid)
+	notificator, err := internal.NewNotificator(ctx, senderJid)
 
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func notifyFresh(ctx context.Context) error {
 		return errors.New("Could not read NEW_EVENTS_CHANNEL_JID from env")
 	}
 
-	notificator, err := internal.NewNotificator(senderJid)
+	notificator, err := internal.NewNotificator(ctx, senderJid)
 
 	if err != nil {
 		return err
