@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -43,13 +44,13 @@ func (pe Event) ToDbEvent(dbEvent db.Event) db.Event {
 	}
 
 	// If the Event was postpone, reset report it again
-	if pe.Date.Sub(time.Now()).Hours() > 24 && math.Abs(pe.Date.Sub(dbEvent.Date).Hours()) > 23.0 {
+	if time.Until(pe.Date).Hours() > 24 && math.Abs(pe.Date.Sub(dbEvent.Date).Hours()) > 23.0 {
 		dbEvent.ReportedAtUpcoming = sql.NullTime{}
 		dbEvent.ReportedAtNew = sql.NullTime{}
 		dbEvent.PostponedDate = sql.NullTime{Time: dbEvent.Date, Valid: true}
 	}
 
-	if pe.Date.Sub(time.Now()).Hours() > 24 {
+	if time.Until(pe.Date).Hours() > 24 {
 		dbEvent.Date = pe.Date
 	}
 
@@ -83,34 +84,31 @@ func CrawlEvents(url string) ([]Event, error) {
 		waitGroup.Add(1)
 	})
 
-	c.OnHTML(".zhcal", func(e *colly.HTMLElement) {
+	c.OnHTML(".elementor-6082", func(e *colly.HTMLElement) {
 		event := Event{}
 
-		e.ForEachWithBreak(".zhcalband", func(i int, e *colly.HTMLElement) bool {
+		e.ForEachWithBreak("h3.elementor-heading-title", func(i int, e *colly.HTMLElement) bool {
 			event.Name = e.Text
 			return false
 		})
 
-		e.ForEachWithBreak(".zhcaldate", func(i int, e *colly.HTMLElement) bool {
-			event.Date, _ = time.ParseInLocation(
-				"20060102",
-				e.ChildAttr(".date", "data-showdate"),
-				time.Local,
-			)
-			// Avoid Timezone problems
-			event.Date = event.Date.Add(time.Hour * 6)
+		// Find the date string in the heading
+		e.ForEachWithBreak(".elementor-heading-title", func(i int, el *colly.HTMLElement) bool {
+			text := strings.TrimSpace(el.Text)
 
-			return false
-		})
+			re := regexp.MustCompile(`(?m)^(Mo|Di|Mi|Do|Fr|Sa|So)\., \d{2}\.\d{2}\.\d{4}$`)
+			matches := re.FindAllString(text, -1)
 
-		e.ForEachWithBreak(".zhcalvenue", func(i int, e *colly.HTMLElement) bool {
-			event.Place = e.Text
-			return false
-		})
+			for _, match := range matches {
+				parsedDate, err := time.ParseInLocation("02.01.2006", match[5:], time.Local)
 
-		e.ForEachWithBreak(".zhcalstatus", func(i int, e *colly.HTMLElement) bool {
-			event.Status = e.Text
-			return false
+				if err == nil {
+					event.Date = parsedDate.Add(time.Hour * 6)
+					return false
+				}
+
+			}
+			return true
 		})
 
 		e.ForEachWithBreak("a[href]", func(i int, e *colly.HTMLElement) bool {
@@ -131,12 +129,38 @@ func CrawlEvents(url string) ([]Event, error) {
 		events = append(events, event)
 	})
 
-	c.OnHTML(".attachment-shows", func(e *colly.HTMLElement) {
+	c.OnHTML("body.single-event", func(e *colly.HTMLElement) {
 		for i := range events {
-			if events[i].Link == e.Request.URL.String() {
-				events[i].ArtistImgUrl = e.Attr("src")
-				break
+			if events[i].Link != e.Request.URL.String() {
+				continue
 			}
+
+			e.ForEachWithBreak("img.attachment-large", func(_ int, el *colly.HTMLElement) bool {
+				events[i].ArtistImgUrl = el.Attr("data-lazy-src")
+				if events[i].ArtistImgUrl == "" {
+					events[i].ArtistImgUrl = el.Attr("src")
+				}
+				return false
+			})
+
+			e.ForEachWithBreak("li.elementor-icon-list-item", func(_ int, li *colly.HTMLElement) bool {
+				hasMapPin := false
+				li.ForEach("span.elementor-icon-list-icon i", func(_ int, icon *colly.HTMLElement) {
+					if icon.Attr("class") == "fad fa-map-pin" {
+						hasMapPin = true
+					}
+				})
+				if hasMapPin {
+					events[i].Place = li.ChildText("span.elementor-icon-list-text")
+					return false
+				}
+				return true
+			})
+
+			e.ForEachWithBreak("div.elementor-element-5bb6689 .elementor-button-text", func(_ int, btn *colly.HTMLElement) bool {
+				events[i].Status = btn.Text
+				return false
+			})
 		}
 	})
 
