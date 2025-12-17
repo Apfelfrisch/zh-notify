@@ -3,6 +3,7 @@ package collect
 import (
 	"database/sql"
 	"fmt"
+	"html"
 	"math"
 	"regexp"
 	"strings"
@@ -158,7 +159,7 @@ func CrawlEvents(url string) ([]Event, error) {
 			})
 
 			e.ForEachWithBreak("div.elementor-element-5bb6689 .elementor-button-text", func(_ int, btn *colly.HTMLElement) bool {
-				events[i].Status = btn.Text
+				events[i].Status = html.UnescapeString(btn.Text)
 				return false
 			})
 		}

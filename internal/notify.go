@@ -78,7 +78,7 @@ func (n Notificator) SendFreshEvents(ctx context.Context, receiver string) {
 		n.sender.SendWithImage(transport.SendImageParams{
 			Ctx:      ctx,
 			Receiver: receiver,
-			Message:  buildMessage(event, false),
+			Message:  buildMessage(event, true),
 			Image:    image,
 			MimeType: mimeType,
 		})
