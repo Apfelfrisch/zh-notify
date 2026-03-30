@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"log"
 	"mime"
 	"net/http"
 	"strings"
@@ -25,7 +24,7 @@ const MAX_IMAGE_SIZE = 500
 var sb strings.Builder
 
 func NewNotificator(ctx context.Context, senderJid string) (*Notificator, error) {
-	conn, err := sql.Open("sqlite3", "database.sqlite")
+	conn, err := db.NewSqliteConn()
 
 	if err != nil {
 		return nil, err
@@ -34,7 +33,7 @@ func NewNotificator(ctx context.Context, senderJid string) (*Notificator, error)
 	sender, err := whatsapp.Connect(ctx, conn, senderJid)
 
 	if err != nil {
-		log.Panic(err)
+		return nil, err
 	}
 
 	return &Notificator{db.NewEventRepoFromConn(conn), sender}, nil

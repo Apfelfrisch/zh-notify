@@ -11,6 +11,11 @@ func NewSqliteConn() (*sql.DB, error) {
 		return nil, err
 	}
 
+	_, err = conn.Exec("PRAGMA foreign_keys = ON")
+	if err != nil {
+		return nil, err
+	}
+
 	return conn, nil
 }
 
