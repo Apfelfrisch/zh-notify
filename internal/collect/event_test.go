@@ -19,6 +19,7 @@ func TestMapCollectedEventToDbvents(t *testing.T) {
 		Status:       "cStatus",
 		Link:         "cLink",
 		ArtistImgUrl: "cArtistUrl",
+		Category:     "concert",
 	}
 
 	var tests = []struct {
@@ -38,6 +39,35 @@ func TestMapCollectedEventToDbvents(t *testing.T) {
 				Link:         tmplEvent.Link,
 				Date:         tmplEvent.Date,
 				ArtistImgUrl: sql.NullString{String: tmplEvent.ArtistImgUrl, Valid: true},
+				Artist:       sql.NullString{String: tmplEvent.Name, Valid: true},
+				Category:     sql.NullString{String: tmplEvent.Category, Valid: true},
+			},
+		},
+		{
+			"keep existing artist and category",
+			Event{Name: "New Name (Ausverkauft)", Category: "comedy"},
+			db.Event{
+				ID:       1,
+				Name:     "Old Name",
+				Artist:   sql.NullString{String: "Old Artist", Valid: true},
+				Category: sql.NullString{String: "concert", Valid: true},
+			},
+			db.Event{
+				ID:       1,
+				Name:     "New Name (Ausverkauft)",
+				Artist:   sql.NullString{String: "Old Artist", Valid: true},
+				Category: sql.NullString{String: "concert", Valid: true},
+			},
+		},
+		{
+			"fill missing artist and category of an existing event",
+			Event{Name: "Bosse (Ausverkauft)", Category: "concert"},
+			db.Event{ID: 1, Name: "Bosse"},
+			db.Event{
+				ID:       1,
+				Name:     "Bosse (Ausverkauft)",
+				Artist:   sql.NullString{String: "Bosse", Valid: true},
+				Category: sql.NullString{String: "concert", Valid: true},
 			},
 		},
 		{
@@ -65,7 +95,7 @@ func TestMapCollectedEventToDbvents(t *testing.T) {
 			"don't set empty event Name",
 			Event{},
 			db.Event{ID: 1, Name: "N", Place: "P", Status: "S", Link: "L", ArtistImgUrl: sql.NullString{String: "URL", Valid: true}},
-			db.Event{ID: 1, Name: "N", Place: "P", Status: "S", Link: "L", ArtistImgUrl: sql.NullString{String: "URL", Valid: true}},
+			db.Event{ID: 1, Name: "N", Place: "P", Status: "S", Link: "L", ArtistImgUrl: sql.NullString{String: "URL", Valid: true}, Artist: sql.NullString{String: "N", Valid: true}},
 		},
 	}
 

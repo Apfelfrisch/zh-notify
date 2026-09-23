@@ -15,19 +15,14 @@ var updateMetadataCmd = &cobra.Command{
 	Short: "Get Metadata for new Events",
 	Args:  cobra.ExactArgs(0), // Ensure exactly one argument is passed
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatGptToken := viper.GetString("CHATGPT_TOKEN")
-		if chatGptToken == "" {
-			return errors.New("Could not read SENDER_JID from env")
-		}
-
 		spotifyId := viper.GetString("SPOTIFY_ID")
-		if chatGptToken == "" {
-			return errors.New("Could not read SENDER_JID from env")
+		if spotifyId == "" {
+			return errors.New("Could not read SPOTIFY_ID from env")
 		}
 
 		sporitySecret := viper.GetString("SPOTIFY_SECRET")
-		if chatGptToken == "" {
-			return errors.New("Could not read SENDER_JID from env")
+		if sporitySecret == "" {
+			return errors.New("Could not read SPOTIFY_SECRET from env")
 		}
 
 		repo, err := db.NewDbEventRepo()
@@ -38,7 +33,7 @@ var updateMetadataCmd = &cobra.Command{
 		return updateMetadata(
 			cmd.Context(),
 			repo,
-			internal.NewSyncEventCollector(chatGptToken, spotifyId, sporitySecret),
+			internal.NewSyncEventCollector(spotifyId, sporitySecret),
 		)
 	},
 }

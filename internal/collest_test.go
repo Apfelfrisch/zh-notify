@@ -31,8 +31,6 @@ func TestCollectEventData(t *testing.T) {
 				ArtistImgUrl: sql.NullString{String: "collected.artist-img-url", Valid: true},
 			},
 			db.Event{
-				Category:     sql.NullString{String: "collected catergory", Valid: true},
-				Artist:       sql.NullString{String: "collected.artist", Valid: true},
 				ArtistUrl:    sql.NullString{String: "collected.artist.url", Valid: true},
 				ArtistImgUrl: sql.NullString{String: "collected.artist-img-url", Valid: true},
 			},
@@ -54,48 +52,6 @@ func TestCollectEventData(t *testing.T) {
 			db.Event{
 				Artist:       sql.NullString{String: "artist", Valid: true},
 				Category:     sql.NullString{String: "catergory", Valid: true},
-				ArtistUrl:    sql.NullString{String: "artist.url", Valid: true},
-				ArtistImgUrl: sql.NullString{String: "artist-img-url", Valid: true},
-			},
-		},
-		{
-			"test set only the artist",
-			db.Event{
-				Artist:       sql.NullString{},
-				Category:     sql.NullString{String: "catergory", Valid: true},
-				ArtistUrl:    sql.NullString{String: "artist.url", Valid: true},
-				ArtistImgUrl: sql.NullString{String: "artist-img-url", Valid: true},
-			},
-			db.Event{
-				Artist:       sql.NullString{String: "collected.artist", Valid: true},
-				Category:     sql.NullString{String: "Collected Catergory", Valid: true},
-				ArtistUrl:    sql.NullString{String: "collected.artist.url", Valid: true},
-				ArtistImgUrl: sql.NullString{String: "collected.artist-img-url", Valid: true},
-			},
-			db.Event{
-				Artist:       sql.NullString{String: "collected.artist", Valid: true},
-				Category:     sql.NullString{String: "catergory", Valid: true},
-				ArtistUrl:    sql.NullString{String: "artist.url", Valid: true},
-				ArtistImgUrl: sql.NullString{String: "artist-img-url", Valid: true},
-			},
-		},
-		{
-			"test set only the catergory",
-			db.Event{
-				Artist:       sql.NullString{String: "artist", Valid: true},
-				Category:     sql.NullString{},
-				ArtistUrl:    sql.NullString{String: "artist.url", Valid: true},
-				ArtistImgUrl: sql.NullString{String: "artist-img-url", Valid: true},
-			},
-			db.Event{
-				Artist:       sql.NullString{String: "collected.artist", Valid: true},
-				Category:     sql.NullString{String: "Collected Catergory", Valid: true},
-				ArtistUrl:    sql.NullString{String: "collected.artist.url", Valid: true},
-				ArtistImgUrl: sql.NullString{String: "collected.artist-img-url", Valid: true},
-			},
-			db.Event{
-				Artist:       sql.NullString{String: "artist", Valid: true},
-				Category:     sql.NullString{String: "Collected Catergory", Valid: true},
 				ArtistUrl:    sql.NullString{String: "artist.url", Valid: true},
 				ArtistImgUrl: sql.NullString{String: "artist-img-url", Valid: true},
 			},
@@ -166,18 +122,6 @@ type InMemoryEventSyncCollector struct {
 }
 
 func (ic InMemoryEventSyncCollector) Init() error {
-	return nil
-}
-
-func (ic InMemoryEventSyncCollector) SetCategory(event *db.Event) error {
-	event.Category = ic.tmplEvent.Category
-
-	return nil
-}
-
-func (ic InMemoryEventSyncCollector) SetArtist(event *db.Event) error {
-	event.Artist = ic.tmplEvent.Artist
-
 	return nil
 }
 

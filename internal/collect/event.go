@@ -17,8 +17,6 @@ import (
 
 type EventSyncCollector interface {
 	Init() error
-	SetCategory(event *db.Event) error
-	SetArtist(event *db.Event) error
 	SetArtistUrl(event *db.Event) error
 	SetArtistImgUrl(event *db.Event) error
 }
@@ -30,6 +28,7 @@ type Event struct {
 	Status       string
 	Link         string
 	ArtistImgUrl string
+	Category     string
 }
 
 func (pe Event) ToDbEvent(dbEvent db.Event) db.Event {
@@ -41,7 +40,7 @@ func (pe Event) ToDbEvent(dbEvent db.Event) db.Event {
 		dbEvent.Link = strings.TrimSpace(pe.Link)
 		dbEvent.ArtistImgUrl = sql.NullString{String: strings.TrimSpace(pe.ArtistImgUrl), Valid: true}
 
-		return dbEvent
+		return pe.setMetadata(dbEvent)
 	}
 
 	// If the Event was postpone, reset report it again
@@ -71,22 +70,43 @@ func (pe Event) ToDbEvent(dbEvent db.Event) db.Event {
 		dbEvent.ArtistImgUrl = sql.NullString{String: strings.TrimSpace(pe.ArtistImgUrl), Valid: true}
 	}
 
+	return pe.setMetadata(dbEvent)
+}
+
+func (pe Event) setMetadata(dbEvent db.Event) db.Event {
+	if artist := extractArtist(dbEvent.Name); !dbEvent.Artist.Valid && artist != "" {
+		dbEvent.Artist = sql.NullString{String: artist, Valid: true}
+	}
+
+	if !dbEvent.Category.Valid && pe.Category != "" {
+		dbEvent.Category = sql.NullString{String: pe.Category, Valid: true}
+	}
+
 	return dbEvent
 }
 
 func CrawlEvents(url string) ([]Event, error) {
-	var waitGroup sync.WaitGroup
-
+	var mu sync.Mutex
 	var events []Event
+	var crawlErr error
 
-	c := colly.NewCollector()
+	c := colly.NewCollector(colly.Async(true))
+	c.SetRequestTimeout(30 * time.Second)
 
-	c.OnRequest(func(r *colly.Request) {
-		waitGroup.Add(1)
+	if err := c.Limit(&colly.LimitRule{DomainGlob: "*", Parallelism: 4}); err != nil {
+		return nil, err
+	}
+
+	c.OnError(func(r *colly.Response, err error) {
+		if r.Request.URL.String() == url {
+			crawlErr = err
+			return
+		}
+		fmt.Printf("Failed to visit link %s: %v\n", r.Request.URL, err)
 	})
 
 	c.OnHTML(".elementor-6082", func(e *colly.HTMLElement) {
-		event := Event{}
+		event := Event{Category: categoryFromClasses(e.Attr("class"))}
 
 		e.ForEachWithBreak("h3.elementor-heading-title", func(i int, e *colly.HTMLElement) bool {
 			event.Name = e.Text
@@ -114,23 +134,24 @@ func CrawlEvents(url string) ([]Event, error) {
 
 		e.ForEachWithBreak("a[href]", func(i int, e *colly.HTMLElement) bool {
 			event.Link = e.Attr("href")
-			if event.Link != "" {
-				waitGroup.Add(1)
-				go func(link string) {
-					defer waitGroup.Done()
-					err := e.Request.Visit(link)
-					if err != nil {
-						fmt.Printf("Failed to visit link %s: %v\n", link, err)
-					}
-				}(event.Link)
-			}
 			return false
 		})
 
+		mu.Lock()
 		events = append(events, event)
+		mu.Unlock()
+
+		if event.Link != "" {
+			if err := e.Request.Visit(event.Link); err != nil {
+				fmt.Printf("Failed to visit link %s: %v\n", event.Link, err)
+			}
+		}
 	})
 
 	c.OnHTML("body.single-event", func(e *colly.HTMLElement) {
+		mu.Lock()
+		defer mu.Unlock()
+
 		for i := range events {
 			if events[i].Link != e.Request.URL.String() {
 				continue
@@ -165,15 +186,15 @@ func CrawlEvents(url string) ([]Event, error) {
 		}
 	})
 
-	c.OnScraped(func(r *colly.Response) {
-		waitGroup.Done()
-	})
-
 	if err := c.Visit(url); err != nil {
 		return nil, err
 	}
 
-	waitGroup.Wait()
+	c.Wait()
+
+	if crawlErr != nil {
+		return nil, crawlErr
+	}
 
 	return events, nil
 }
