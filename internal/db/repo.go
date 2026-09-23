@@ -68,6 +68,8 @@ func (er *EventRepo) Save(ctx context.Context, event Event) error {
 			Status:       event.Status,
 			Link:         event.Link,
 			Date:         event.Date,
+			Artist:       event.Artist,
+			Category:     event.Category,
 			ArtistImgUrl: event.ArtistImgUrl,
 		})
 	}

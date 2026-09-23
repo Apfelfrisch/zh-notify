@@ -49,6 +49,19 @@ func TestSaveEvents(t *testing.T) {
 		assert.False(t, event.ReportedAtUpcoming.Valid)
 	})
 
+	t.Run("write artist and category of a new event", func(t *testing.T) {
+		repo := db.NewEventRepoFromConn(prepareConnection())
+
+		saveEvents(context.Background(), repo, []collect.Event{
+			{Name: "Bosse (Ausverkauft)", Category: "concert", Link: "link-1", Date: time.Now()},
+		})
+
+		event, err := repo.GetById(context.Background(), 1)
+		assert.Nil(t, err)
+		assert.Equal(t, "Bosse", event.Artist.String)
+		assert.Equal(t, "concert", event.Category.String)
+	})
+
 	t.Run("update an event", func(t *testing.T) {
 		repo := db.NewEventRepoFromConn(prepareConnection())
 		saveEvents(context.Background(), repo, []collect.Event{eventTmpl})
