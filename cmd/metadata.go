@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/apfelfrisch/zh-notify/internal"
 	"github.com/apfelfrisch/zh-notify/internal/db"
@@ -53,13 +54,17 @@ func updateMetadata(ctx context.Context, eventRepo db.EventRepository, service *
 		return err
 	}
 
+	var errs []error
+
 	for _, event := range events {
 		if err := service.Sync(&event); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("sync %q: %w", event.Name, err))
 		}
 
-		eventRepo.Save(ctx, event)
+		if err := eventRepo.Save(ctx, event); err != nil {
+			errs = append(errs, fmt.Errorf("save %q: %w", event.Name, err))
+		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
