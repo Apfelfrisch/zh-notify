@@ -45,3 +45,7 @@ func extractArtist(name string) string {
 
 	return strings.TrimSpace(artist)
 }
+
+func cleanPlace(place string) string {
+	return strings.TrimSpace(strings.TrimRight(place, "→ \u00a0"))
+}

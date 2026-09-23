@@ -173,7 +173,7 @@ func CrawlEvents(url string) ([]Event, error) {
 					}
 				})
 				if hasMapPin {
-					events[i].Place = li.ChildText("span.elementor-icon-list-text")
+					events[i].Place = cleanPlace(li.ChildText("span.elementor-icon-list-text"))
 					return false
 				}
 				return true

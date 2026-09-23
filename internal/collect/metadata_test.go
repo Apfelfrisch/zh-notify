@@ -57,3 +57,22 @@ func TestCategoryFromClasses(t *testing.T) {
 		})
 	}
 }
+
+func TestCleanPlace(t *testing.T) {
+	var tests = []struct {
+		place    string
+		expected string
+	}{
+		{"Café →", "Café"},
+		{"Theater an der Blinke →", "Theater an der Blinke"},
+		{"Großer Saal\u00a0→", "Großer Saal"},
+		{"Theater", "Theater"},
+		{"", ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.place, func(t *testing.T) {
+			assert.Equal(t, test.expected, cleanPlace(test.place))
+		})
+	}
+}
